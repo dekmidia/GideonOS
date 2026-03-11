@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>📊 Análise de Pump — Marcelo Vega</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg:       #0a0f1e;
+      --surface:  #111827;
+      --card:     #161f30;
+      --border:   #1e2d45;
+      --green:    #00e676;
+      --red:      #ff5252;
+      --yellow:   #ffd740;
+      --blue:     #40c4ff;
+      --purple:   #b388ff;
+      --text:     #e0e6f0;
+      --muted:    #7b8db0;
+      --accent:   #00bcd4;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; min-height: 100vh; }
+
+    /* HEADER */
+    header {
+      background: linear-gradient(135deg, #0d1b3e 0%, #0a2340 60%, #0d1226 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 32px 40px;
+      display: flex; align-items: center; gap: 20px;
+    }
+    .logo { font-size: 2.4rem; }
+    .header-text h1 { font-size: 1.7rem; font-weight: 800; background: linear-gradient(90deg, #00e676, #40c4ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .header-text p { color: var(--muted); font-size: 0.9rem; margin-top: 4px; }
+    .badge { background: rgba(0,230,118,0.12); border: 1px solid rgba(0,230,118,0.4); color: var(--green); border-radius: 20px; padding: 4px 14px; font-size: 0.75rem; font-weight: 600; letter-spacing: 1px; margin-left: auto; }
+
+    /* SUMMARY TABLE */
+    .summary-section { padding: 32px 40px 0; }
+    .summary-section h2 { font-size: 1rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 16px; }
+    .summary-table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+    .summary-table th { background: #0d1b3e; color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; padding: 12px 16px; text-align: left; }
+    .summary-table td { padding: 12px 16px; border-top: 1px solid var(--border); font-size: 0.88rem; vertical-align: middle; }
+    .summary-table tr:hover td { background: rgba(255,255,255,0.02); }
+    .stars { color: var(--yellow); font-size: 0.9rem; }
+    .tag { display: inline-block; border-radius: 6px; padding: 2px 10px; font-size: 0.75rem; font-weight: 600; }
+    .tag-green  { background: rgba(0,230,118,0.12); color: var(--green);  border: 1px solid rgba(0,230,118,0.3); }
+    .tag-red    { background: rgba(255,82,82,0.12);  color: var(--red);   border: 1px solid rgba(255,82,82,0.3); }
+    .tag-yellow { background: rgba(255,215,64,0.12); color: var(--yellow);border: 1px solid rgba(255,215,64,0.3);}
+    .tag-blue   { background: rgba(64,196,255,0.12); color: var(--blue);  border: 1px solid rgba(64,196,255,0.3);}
+    .tag-purple { background: rgba(179,136,255,0.12);color: var(--purple);border: 1px solid rgba(179,136,255,0.3);}
+
+    /* CARDS GRID */
+    .cards-section { padding: 32px 40px; }
+    .cards-section h2 { font-size: 1rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 20px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(680px, 1fr)); gap: 24px; }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      transition: transform .2s, box-shadow .2s;
+    }
+    .card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.5); }
+
+    .card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 20px;
+      background: linear-gradient(90deg, #0d1b3e, #0a1a30);
+      border-bottom: 1px solid var(--border);
+    }
+    .card-header h3 { font-family: 'JetBrains Mono', monospace; font-size: 1rem; font-weight: 600; color: var(--blue); }
+    .card-header .tf  { font-size: 0.75rem; color: var(--muted); background: var(--bg); border-radius: 6px; padding: 3px 10px; }
+
+    .card-img { width: 100%; display: block; max-height: 320px; object-fit: cover; background: #070d1a; }
+
+    .card-body { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    .info-block { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+    .info-block .label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 6px; }
+    .info-block .value { font-size: 0.88rem; font-weight: 500; line-height: 1.6; }
+
+    .indicators-row { display: flex; flex-wrap: wrap; gap: 6px; }
+    .ind-chip {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem; font-weight: 500;
+      padding: 4px 10px; border-radius: 6px;
+      background: rgba(64,196,255,0.08);
+      border: 1px solid rgba(64,196,255,0.2);
+      color: var(--blue);
+    }
+    .ind-chip.ok   { background: rgba(0,230,118,0.08); border-color: rgba(0,230,118,0.3); color: var(--green); }
+    .ind-chip.warn { background: rgba(255,215,64,0.08); border-color: rgba(255,215,64,0.3); color: var(--yellow);}
+    .ind-chip.bad  { background: rgba(255,82,82,0.08);  border-color: rgba(255,82,82,0.3);  color: var(--red);  }
+
+    .trade-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    .trade-item { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; text-align: center; }
+    .trade-item .tlabel { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+    .trade-item .tval { font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; font-weight: 600; margin-top: 4px; }
+    .tval.green { color: var(--green); }
+    .tval.red   { color: var(--red); }
+    .tval.yellow{ color: var(--yellow); }
+
+    .lesson-box { background: rgba(179,136,255,0.07); border: 1px solid rgba(179,136,255,0.25); border-radius: 10px; padding: 12px 14px; font-size: 0.83rem; color: var(--purple); line-height: 1.6; }
+    .lesson-box strong { color: #d8b4fe; }
+
+    /* FOOTER */
+    footer { text-align: center; color: var(--muted); font-size: 0.8rem; padding: 32px 40px; border-top: 1px solid var(--border); }
+    footer span { color: var(--green); font-weight: 600; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">📊</div>
+  <div class="header-text">
+    <h1>Análise de Padrões de Pump</h1>
+    <p>Relatório técnico gerado pelo analista sênior Marcelo Vega • 11/03/2026</p>
+  </div>
+  <div class="badge">CRYPTO-PUMP-ANALYST v1</div>
+</header>
+
+<!-- SUMMARY TABLE -->
+<div class="summary-section">
+  <h2>Resumo dos Setups</h2>
+  <table class="summary-table">
+    <thead>
+      <tr>
+        <th>Ativo</th><th>Timeframe</th><th>Padrão Detectado</th><th>Qualidade</th><th>Retorno Esperado</th><th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong style="font-family:JetBrains Mono,monospace;color:#40c4ff">SSVUSDT</strong></td>
+        <td>4h</td>
+        <td><span class="tag tag-green">Squeeze Release</span></td>
+        <td><span class="stars">★★★★★</span></td>
+        <td style="color:var(--green)">+12% a +36%</td>
+        <td><span class="tag tag-green">✅ ENTRADA</span></td>
+      </tr>
+      <tr>
+        <td><strong style="font-family:JetBrains Mono,monospace;color:#40c4ff">MAVUSDT</strong></td>
+        <td>4h</td>
+        <td><span class="tag tag-yellow">God Candle</span></td>
+        <td><span class="stars">★★★★</span></td>
+        <td style="color:var(--green)">+15% explosivo</td>
+        <td><span class="tag tag-yellow">⚠️ DIFÍCIL</span></td>
+      </tr>
+      <tr>
+        <td><strong style="font-family:JetBrains Mono,monospace;color:#40c4ff">ILVUSDT</strong></td>
+        <td>4h</td>
+        <td><span class="tag tag-blue">Range Breakout</span></td>
+        <td><span class="stars">★★★★</span></td>
+        <td style="color:var(--green)">+8% a +15%</td>
+        <td><span class="tag tag-green">✅ ENTRADA</span></td>
+      </tr>
+      <tr>
+        <td><strong style="font-family:JetBrains Mono,monospace;color:#40c4ff">PIXELUSDT</strong></td>
+        <td>4h</td>
+        <td><span class="tag tag-blue">Acumulação Pós-Drop</span></td>
+        <td><span class="stars">★★★★</span></td>
+        <td style="color:var(--green)">+3% a +8%</td>
+        <td><span class="tag tag-green">✅ MELHOR R/R</span></td>
+      </tr>
+      <tr>
+        <td><strong style="font-family:JetBrains Mono,monospace;color:#40c4ff">RONINUSDT</strong></td>
+        <td>4h</td>
+        <td><span class="tag tag-purple">Trend Following</span></td>
+        <td><span class="stars">★★★</span></td>
+        <td style="color:var(--green)">+10% a +20%</td>
+        <td><span class="tag tag-yellow">⚠️ ENTRADA CARA</span></td>
+      </tr>
+      <tr>
+        <td><strong style="font-family:JetBrains Mono,monospace;color:#40c4ff">DYDXUSDT</strong></td>
+        <td>4h</td>
+        <td><span class="tag tag-blue">Reversão de Fundo</span></td>
+        <td><span class="stars">★★★</span></td>
+        <td style="color:var(--yellow)">+6% a +10%</td>
+        <td><span class="tag tag-yellow">⚠️ RISCO MÉDIO</span></td>
+      </tr>
+      <tr>
+        <td><strong style="font-family:JetBrains Mono,monospace;color:#40c4ff">XAUSDT</strong></td>
+        <td>4h</td>
+        <td><span class="tag tag-yellow">Parabolic Run</span></td>
+        <td><span class="stars">★★</span></td>
+        <td style="color:var(--yellow)">Indef.</td>
+        <td><span class="tag tag-yellow">⚠️ EXAUSTÃO</span></td>
+      </tr>
+      <tr>
+        <td><strong style="font-family:JetBrains Mono,monospace;color:#40c4ff">PIXELUSDT</strong></td>
+        <td>5m</td>
+        <td><span class="tag tag-red">Ruído Intraday</span></td>
+        <td>—</td>
+        <td style="color:var(--red)">—</td>
+        <td><span class="tag tag-red">❌ NÃO OPERAR</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- CARDS -->
+<div class="cards-section">
+  <h2>Análise Detalhada por Ativo</h2>
+  <div class="grid">
+
+    <!-- SSV -->
+    <div class="card">
+      <div class="card-header"><h3>SSVUSDT</h3><span class="tf">4h • Binance Spot</span></div>
+      <img class="card-img" src="images/SSVUSDT-4h-binance-spot.png" alt="SSVUSDT 4h"/>
+      <div class="card-body">
+        <div class="indicators-row">
+          <span class="ind-chip ok">✅ SQZ Squeeze Release</span>
+          <span class="ind-chip ok">✅ RSI cruzando 50</span>
+          <span class="ind-chip ok">✅ Histograma Verde Crescente</span>
+          <span class="ind-chip ok">✅ Volume confirmado</span>
+        </div>
+        <div class="row2">
+          <div class="info-block">
+            <div class="label">Padrão Detectado</div>
+            <div class="value">⭐ Squeeze Explosion — O exemplo mais didático e limpo da amostra. Preço ficou lateral por muito tempo, com pontos amarelos de squeeze máximo, e liberou com força. Histograma iniciou verde com RSI cruzando 50.</div>
+          </div>
+          <div class="info-block">
+            <div class="label">Leitura dos Indicadores</div>
+            <div class="value">Pontos amarelos → verde (liberação do squeeze). RSI em ascensão cruzando 50. Volume expressivo no candle de liberação. BB saiu do KC (Squeeze OFF).</div>
+          </div>
+        </div>
+        <div class="trade-row">
+          <div class="trade-item"><div class="tlabel">Entrada</div><div class="tval green">~$33.00</div></div>
+          <div class="trade-item"><div class="tlabel">Take Profit</div><div class="tval yellow">$45.00+</div></div>
+          <div class="trade-item"><div class="tlabel">Stop Loss</div><div class="tval red">Abaixo KC inferior</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAV -->
+    <div class="card">
+      <div class="card-header"><h3>MAVUSDT</h3><span class="tf">4h • Binance Spot</span></div>
+      <img class="card-img" src="images/MAVUSDT-4h-binance-spot.png" alt="MAVUSDT 4h"/>
+      <div class="card-body">
+        <div class="indicators-row">
+          <span class="ind-chip ok">✅ SQZ Explodiu</span>
+          <span class="ind-chip ok">✅ Volume Astronômico</span>
+          <span class="ind-chip warn">⚠️ Entrada difícil (movimento veloz)</span>
+          <span class="ind-chip warn">⚠️ Risco de mean reversion</span>
+        </div>
+        <div class="row2">
+          <div class="info-block">
+            <div class="label">Padrão Detectado</div>
+            <div class="value">"God Candle" — Movimento parabólico clássico. O preço saltou de ~0,0140 para 0,0164 em um único candle 4h. Volume muito acima de qualquer média anterior.</div>
+          </div>
+          <div class="info-block">
+            <div class="label">Leitura dos Indicadores</div>
+            <div class="value">Sinal LONG apareceu na acumulação (base). SQZ explodiu verticalmente. Volume fora da curva — confirmação de capital entrando. Risco alto de reversão rápida no topo do pavio.</div>
+          </div>
+        </div>
+        <div class="trade-row">
+          <div class="trade-item"><div class="tlabel">Entrada Ideal</div><div class="tval green">$0.0138 (acumulação)</div></div>
+          <div class="trade-item"><div class="tlabel">Saída Imediata</div><div class="tval yellow">Topo do pavio</div></div>
+          <div class="trade-item"><div class="tlabel">Stop Loss</div><div class="tval red">−2% da entrada</div></div>
+        </div>
+        <div class="lesson-box"><strong>🔁 Lição:</strong> Nesse padrão, a entrada ideal é ANTES do candle de explosão, na acumulação tranquila. Após o God Candle, o risco/retorno piora muy rapidamente.</div>
+      </div>
+    </div>
+
+    <!-- ILV -->
+    <div class="card">
+      <div class="card-header"><h3>ILVUSDT</h3><span class="tf">4h • Binance Spot</span></div>
+      <img class="card-img" src="images/ILVUSDT-4h-binance-spot.png" alt="ILVUSDT 4h"/>
+      <div class="card-body">
+        <div class="indicators-row">
+          <span class="ind-chip ok">✅ Volume no Breakout</span>
+          <span class="ind-chip ok">✅ SQZ Verde Escuro (crescendo)</span>
+          <span class="ind-chip ok">✅ RSI > 70 (força)</span>
+          <span class="ind-chip warn">⚠️ RSI em sobrecompra</span>
+        </div>
+        <div class="row2">
+          <div class="info-block">
+            <div class="label">Padrão Detectado</div>
+            <div class="value">Range Breakout — Rompimento de zona de consolidação entre 3,40 e 3,90 com volume expressivo. Preço em 4,05 mostrando força compradora clara.</div>
+          </div>
+          <div class="info-block">
+            <div class="label">Leitura dos Indicadores</div>
+            <div class="value">SQZ em modo Squeeze Release com barras verdes escuras crescendo. Volume alto no candle de rompimento. RSI já ultrapassou 70 (zona de força, mas com cautela para sobrecompra).</div>
+          </div>
+        </div>
+        <div class="trade-row">
+          <div class="trade-item"><div class="tlabel">Entrada Ideal</div><div class="tval green">Reteste $3.93</div></div>
+          <div class="trade-item"><div class="tlabel">Take Profit</div><div class="tval yellow">$4.20 – $4.50</div></div>
+          <div class="trade-item"><div class="tlabel">Stop Loss</div><div class="tval red">Abaixo de $3.90</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PIXEL 4h -->
+    <div class="card">
+      <div class="card-header"><h3>PIXELUSDT</h3><span class="tf">4h • Binance Spot</span></div>
+      <img class="card-img" src="images/PIXELUSDT-4h-binance-spot.png" alt="PIXELUSDT 4h"/>
+      <div class="card-body">
+        <div class="indicators-row">
+          <span class="ind-chip ok">✅ LONG Ativado</span>
+          <span class="ind-chip ok">✅ SQZ Verde Claro (iniciando)</span>
+          <span class="ind-chip ok">✅ STC cruzando acima de 20</span>
+          <span class="ind-chip ok">✅ Melhor Risco/Retorno</span>
+        </div>
+        <div class="row2">
+          <div class="info-block">
+            <div class="label">Padrão Detectado</div>
+            <div class="value">Acumulação Pós-Drop — Após queda acentuada, formou suporte sólido em 0,48. Pressão vendedora acabou. Confluence Setup ativado com início de nova tendência de alta.</div>
+          </div>
+          <div class="info-block">
+            <div class="label">Leitura dos Indicadores</div>
+            <div class="value">Sinal LONG ativado. SQZ cruzou para verde claro (fim da compressão bearish). STC cruzando acima da zona de sobrevenda (20). EMA9 virando para cima.</div>
+          </div>
+        </div>
+        <div class="trade-row">
+          <div class="trade-item"><div class="tlabel">Entrada</div><div class="tval green">~$0.50</div></div>
+          <div class="trade-item"><div class="tlabel">Take Profit</div><div class="tval yellow">$0.65 (topo anterior)</div></div>
+          <div class="trade-item"><div class="tlabel">Stop Loss</div><div class="tval red">Abaixo de $0.48</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RONIN -->
+    <div class="card">
+      <div class="card-header"><h3>RONINUSDT</h3><span class="tf">4h • Binance Spot</span></div>
+      <img class="card-img" src="images/RONINUSDT-4h-binance-spot.png" alt="RONINUSDT 4h"/>
+      <div class="card-body">
+        <div class="indicators-row">
+          <span class="ind-chip ok">✅ Tendência de Alta Saudável</span>
+          <span class="ind-chip ok">✅ SMA20 como Suporte Dinâmico</span>
+          <span class="ind-chip ok">✅ Histograma Verde Contínuo</span>
+          <span class="ind-chip warn">⚠️ Entrada mais cara (tendência avançada)</span>
+        </div>
+        <div class="row2">
+          <div class="info-block">
+            <div class="label">Padrão Detectado</div>
+            <div class="value">Bull Trend Continuation — Estrutura de alta muito saudável, respeitando a inclinação das médias. SMA20 funciona como suporte dinâmico impecável. Histograma verde contínuo.</div>
+          </div>
+          <div class="info-block">
+            <div class="label">Leitura dos Indicadores</div>
+            <div class="value">Sinal LONG dado em ~2,60 (entrada original). Cada toque na SMA20 é uma oportunidade de reentrada. Histograma verde mantido por vários candles.</div>
+          </div>
+        </div>
+        <div class="trade-row">
+          <div class="trade-item"><div class="tlabel">Reentrada</div><div class="tval green">Toque SMA20 ~$2.85</div></div>
+          <div class="trade-item"><div class="tlabel">Take Profit</div><div class="tval yellow">$3.80 – $4.00</div></div>
+          <div class="trade-item"><div class="tlabel">Stop Loss</div><div class="tval red">Abaixo SMA20</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DYDX -->
+    <div class="card">
+      <div class="card-header"><h3>DYDXUSDT</h3><span class="tf">4h • Binance Spot</span></div>
+      <img class="card-img" src="images/DYDXUSDT-4h-binance-spot.png" alt="DYDXUSDT 4h"/>
+      <div class="card-body">
+        <div class="indicators-row">
+          <span class="ind-chip ok">✅ LONG Ativado (pós SMA20)</span>
+          <span class="ind-chip ok">✅ SQZ transicionando para verde</span>
+          <span class="ind-chip ok">✅ RSI cruzando 50</span>
+          <span class="ind-chip warn">⚠️ Reversão (maior risco)</span>
+        </div>
+        <div class="row2">
+          <div class="info-block">
+            <div class="label">Padrão Detectado</div>
+            <div class="value">Reversão de Fundo — O ativo vinha em baixa desde 0,1100 e formou fundo em 0,0880. Sinal LONG apareceu após o preço cruzar a SMA20. Barras vermelhas do SQZ perderam força.</div>
+          </div>
+          <div class="info-block">
+            <div class="label">Leitura dos Indicadores</div>
+            <div class="value">SQZ transitou de barras vermelhas escuras para verde claro. RSI em ascensão cruzando 50. Linha vertical laranja marcando o timing preciso da reversão do STC.</div>
+          </div>
+        </div>
+        <div class="trade-row">
+          <div class="trade-item"><div class="tlabel">Entrada</div><div class="tval green">~$0.0895</div></div>
+          <div class="trade-item"><div class="tlabel">Take Profit</div><div class="tval yellow">EMA200 ~$0.0960</div></div>
+          <div class="trade-item"><div class="tlabel">Stop Loss</div><div class="tval red">−1.5% (~$0.0882)</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- XAU -->
+    <div class="card">
+      <div class="card-header"><h3>XAUSDT</h3><span class="tf">4h • Binance Spot</span></div>
+      <img class="card-img" src="images/XAUSDT-4h-binance-spot.png" alt="XAUSDT 4h"/>
+      <div class="card-body">
+        <div class="indicators-row">
+          <span class="ind-chip ok">✅ SQZ Verde Escuro (força máx.)</span>
+          <span class="ind-chip bad">❌ RSI > 80 (exaustão iminente)</span>
+          <span class="ind-chip warn">⚠️ Parabólico (sem correção)</span>
+        </div>
+        <div class="row2">
+          <div class="info-block">
+            <div class="label">Padrão Detectado</div>
+            <div class="value">Parabolic Run — Movimento linear e forte, sem correções profundas. Candles mais preenchidos e menos erráticos, indicando entrada institucional massiva e constante (diferente de cripto).</div>
+          </div>
+          <div class="info-block">
+            <div class="label">Leitura dos Indicadores</div>
+            <div class="value">RSI acima de 80 — exaustão iminente. SQZ na fase mais forte (verde escuro). Cautela: movimentos parabólicos sem correção costumam finalizar abruptamente.</div>
+          </div>
+        </div>
+        <div class="trade-row">
+          <div class="trade-item"><div class="tlabel">Status</div><div class="tval red">Tarde demais</div></div>
+          <div class="trade-item"><div class="tlabel">Estratégia</div><div class="tval yellow">Aguardar correção</div></div>
+          <div class="trade-item"><div class="tlabel">Reentrada</div><div class="tval green">Após recuo para SMA20</div></div>
+        </div>
+        <div class="lesson-box"><strong>🔁 Lição:</strong> Parabolic Runs sem correção são perigosos para entrada. Mesmo com RSI > 80, o stop pode ser longo. Aguardar o recuo para a SMA20 é mais seguro.</div>
+      </div>
+    </div>
+
+    <!-- PIXEL 5m -->
+    <div class="card">
+      <div class="card-header"><h3>PIXELUSDT</h3><span class="tf">5m • Binance Spot</span></div>
+      <img class="card-img" src="images/PIXELUSDT-5m-binance-spot.png" alt="PIXELUSDT 5m"/>
+      <div class="card-body">
+        <div class="indicators-row">
+          <span class="ind-chip bad">❌ SQZ Ruidoso (alterna rápido)</span>
+          <span class="ind-chip bad">❌ STC em 99 (exaustão imediata)</span>
+          <span class="ind-chip bad">❌ Pavios Longos (sem direção)</span>
+        </div>
+        <div class="row2">
+          <div class="info-block">
+            <div class="label">Situação</div>
+            <div class="value">❌ NÃO OPERAR — Este print demonstra o perigo de operar apenas no 5m. Alta volatilidade, pavios longos e sem direção clara. O que parece pump no 5m é apenas ruído dentro da acumulação do 4h.</div>
+          </div>
+          <div class="info-block">
+            <div class="label">Leitura dos Indicadores</div>
+            <div class="value">SQZ muito ruidoso, alternando entre vermelho e verde rapidamente. STC em 99 (topo) indicando exaustão imediata do micro-movimento. Volume irregular.</div>
+          </div>
+        </div>
+        <div class="lesson-box"><strong>📌 Regra de Ouro (confirmada aqui):</strong> "O sinal <em>nasce no 15m</em>, é <em>confirmado pelo 1h</em> e <em>executado no 5m</em>." Nunca operar o 5m sem o contexto do 15m/1h.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<footer>
+  Relatório gerado automaticamente por <span>Marcelo Vega</span> — Crypto Pump Analyst Skill v1 • Caráter informativo e técnico, não constitui recomendação de investimento.
+</footer>
+
+</body>
+</html>
