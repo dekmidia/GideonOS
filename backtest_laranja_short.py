@@ -10,6 +10,14 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta, timezone
 
+# --- CONFIGURAÇÕES DOS INDICADORES ---
+PERIODOS_RSI = 14
+PERIODOS_BB  = 20
+DESVIO_BB    = 2
+FILTRO_RSI_MIN = 60 # Só entra se RSI > 60 (Exaustão)
+DIAS_HISTORICO = 90  # Período de teste atual
+
+
 PARES_BACKTEST = [
     "SOLUSDT", "LINKUSDT", "DOGEUSDT", "NEARUSDT",
     "APTUSDT",  "AVAXUSDT", "DOTUSDT",  "XRPUSDT",
@@ -46,6 +54,24 @@ def obter_historico(symbol, interval="4h", dias=180):
     df.set_index("timestamp", inplace=True)
     return df
 
+def adicionar_indicadores(df):
+    """
+    Calcula indicadores técnicos necessários para a Matriz de Filtragem V2.
+    """
+    # RSI (Simple Moving Average version)
+    delta = df['close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=PERIODOS_RSI).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=PERIODOS_RSI).mean()
+    rs = gain / loss
+    df['rsi'] = 100 - (100 / (1 + rs))
+    
+    # Bollinger Bands
+    df['ma20'] = df['close'].rolling(window=PERIODOS_BB).mean()
+    df['std20'] = df['close'].rolling(window=PERIODOS_BB).std()
+    df['bb_upper'] = df['ma20'] + (DESVIO_BB * df['std20'])
+    
+    return df
+
 def detectar_padrao_laranja(janela_df):
     """
     Motor Morfológico IDÊNTICO ao Scanner Laranja Original.
@@ -67,11 +93,20 @@ def detectar_padrao_laranja(janela_df):
     pavio_inferior = (min(gatilho["open"], gatilho["close"]) - gatilho["low"]) / gatilho["open"] * 100
     if pavio_inferior < 0.3: return None
         
+    # --- NOVOS FILTROS ATIVOS (MARCELO VEGA V2) ---
+    # 1. Filtro de Bandas de Bollinger (Deve tocar a banda superior)
+    if gatilho["high"] < gatilho["bb_upper"]: return None
+    
+    # 2. Filtro de RSI (Deve estar em zona de exaustão)
+    if gatilho["rsi"] < FILTRO_RSI_MIN: return None
+        
     return {
         "preco": gatilho["close"], 
         "corpo": corpo_gatilho, 
         "range_cx": range_caixote,
-        "pavio": pavio_inferior
+        "pavio": pavio_inferior,
+        "rsi": gatilho["rsi"],
+        "bb_upper": gatilho["bb_upper"]
     }
 
 def simular_trade_short(df_futuro, p_in, perfil):
@@ -109,12 +144,15 @@ def backtest_laranja_short():
     sinais_totais = 0
 
     for symbol in PARES_BACKTEST:
-        print(f"  ⬇️  Baixando {symbol} (180 dias / 4H)...", end=" ", flush=True)
-        df = obter_historico(symbol, "4h", 180)
+        print(f"  ⬇️  Baixando {symbol} ({DIAS_HISTORICO} dias / 4H)...", end=" ", flush=True)
+        df = obter_historico(symbol, "4h", DIAS_HISTORICO)
         
         if df is None or len(df) < JANELA + PERFIL_SHORT["expiry"] + 10:
             print("PULADO")
             continue
+            
+        # Adicionar indicadores antes do loop para performance
+        df = adicionar_indicadores(df)
             
         trades = 0
         cooldown = 0
