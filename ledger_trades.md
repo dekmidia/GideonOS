@@ -30,5 +30,19 @@ As bandas medem a dispersão do preço em relação à média. São as "fronteir
 *   **No Laranja Short**: Se o sinal aparecer **tocando ou fora da Banda Superior**, a probabilidade de um tombo de volta à média é de quase 80%.
 
 ---
+
+## 🛡️ Política de Alavancagem Recomendada (Setup V3)
+Baseado no Win Rate de **83.4%** e Stop Loss técnico de **10%**:
+
+| Perfil | Alavancagem | Risco por Trade | Observação |
+| :--- | :---: | :---: | :--- |
+| **Conservador** | 2x - 5x | Baixo | Recomendado para iniciantes ou bancas grandes. |
+| **Moderado** | **5x - 10x** | **Médio** | **O "Sweet Spot" para este setup.** Equilíbrio ideal. |
+| **Agressivo** | 10x - 12x | Alto | Apenas se o RSI estiver acima de 80 (Exaustão extrema). |
+
+> [!WARNING]
+> **NUNCA exceder 12x** nesta estratégia. Com um Stop Loss de 10%, uma alavancagem de 10x já representa 100% de perda da margem se o stop for atingido. Use sempre **Margem Isolada**.
+
+---
 > [!NOTE]
 > *Sempre que uma nova posição for aberta ou fechada, informe o bot para atualização deste registro.*
