@@ -1,8 +1,8 @@
 """
 ╔══════════════════════════════════════════════════════════════════╗
-║           CRYPTO PUMP DETECTOR — Marcelo Vega                   ║
-║     ESTRATÉGIA LARANJA SHORT (1H) — FOCO EXCLUSIVO              ║
-║     Fontes: Binance (Klines 1h) + CoinGecko (rank/vol)          ║
+║           GIDEON SENTINEL — LARANJA MECÂNICA                    ║
+║     ESTRATÉGIA MULTI-TIMEFRAME (30M, 1H, 4H)                    ║
+║     Fontes: Binance (Klines) + CoinGecko (rank/vol)             ║
 ╚══════════════════════════════════════════════════════════════════╝
 """
 
@@ -43,7 +43,6 @@ SIMBOLOS_POR_CICLO = 10
 
 # CONFIGURAÇÃO TELEGRAM
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "") 
-# Suporta múltiplos IDs separados por vírgula
 _raw_chat_ids = os.getenv("TELEGRAM_CHAT_ID", "")
 TELEGRAM_CHAT_IDS = [id.strip() for id in _raw_chat_ids.split(",") if id.strip()]
 
@@ -51,23 +50,25 @@ LIMITE_CANDLES  = 100
 COINGECKO_RANK  = 500   
 VOLUME_MIN_24H  = 3_000_000 
 
+# PERFIS LARANJA MECÂNICA (SHORT)
+PERFIS_MECANICA = {
+    "30m": {"tp": 0.975, "sl": 1.050, "emoji": "🕒"}, # -2.5% / +5%
+    "1h":  {"tp": 0.950, "sl": 1.100, "emoji": "🕐"}, # -5% / +10%
+    "4h":  {"tp": 0.950, "sl": 1.100, "emoji": "🕓"}  # -5% / +10%
+}
+
 _PROXIMO_INDICE_ROTATIVO = 0
 
 # ─────────────────────────────────────────────────
 # UTILITÁRIOS — NOTIFICAÇÕES
 # ─────────────────────────────────────────────────
 def enviar_telegram(mensagem: str):
-    """Envia alerta para o bot do Telegram para todos os destinatários configurados."""
     print(f"\n📡 [SENTINELA] Gerando Alerta:\n{mensagem}\n")
-    
-    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_IDS:
-        return
-        
+    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_IDS: return
     for chat_id in TELEGRAM_CHAT_IDS:
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
         payload = {"chat_id": chat_id, "text": mensagem, "parse_mode": "Markdown"}
         try:
-            # Timeout de 20s para conexões lentas
             requests.post(url, json=payload, timeout=20)
         except Exception as e:
             print(f"  ⚠️ Erro de conexão com Telegram ({chat_id}): {e}")
@@ -106,7 +107,6 @@ def obter_klines(symbol: str, interval: str, limit: int = LIMITE_CANDLES) -> pd.
         return None
 
 def calcular_atr(df: pd.DataFrame, period: int = 14) -> float:
-    """Calcula o ATR médio dos últimos períodos."""
     high_low = df['high'] - df['low']
     high_close = np.abs(df['high'] - df['close'].shift())
     low_close = np.abs(df['low'] - df['close'].shift())
@@ -116,9 +116,7 @@ def calcular_atr(df: pd.DataFrame, period: int = 14) -> float:
     return atr
 
 def estimar_tempo_alvo(preco: float, alvo: float, atr: float) -> int:
-    """Estima quantos candles faltam para atingir o alvo baseado no ATR."""
     distancia = abs(preco - alvo)
-    # Usamos 70% do ATR como velocidade média direcional conservadora
     if atr == 0 or np.isnan(atr): return 0
     candles = distancia / (atr * 0.7)
     return int(round(max(1, candles)))
@@ -135,8 +133,8 @@ def calcular_rsi(series: pd.Series, period: int = 14) -> pd.Series:
     rs = avg_gain / avg_loss.replace(0, np.nan)
     return 100 - (100 / (1 + rs))
 
-def detectar_padrao_laranja(df: pd.DataFrame, interval: str) -> dict | None:
-    """Estratégia Laranja Short (1H): Varredura e Exaustão."""
+def detectar_laranja_mecanica(df: pd.DataFrame, interval: str) -> dict | None:
+    """Estratégia Laranja Mecânica: Varredura de Liquidez."""
     if df is None or len(df) < 30: return None
     
     gatilho = df.iloc[-1]
@@ -158,7 +156,7 @@ def detectar_padrao_laranja(df: pd.DataFrame, interval: str) -> dict | None:
     atr = calcular_atr(df)
         
     return {
-        "estrategia": "Laranja Short",
+        "estrategia": "Laranja Mecânica",
         "timeframe": interval,
         "preco": gatilho["close"], 
         "range_cx": round(range_caixote, 2),
@@ -210,71 +208,63 @@ def scan_mercado():
     _PROXIMO_INDICE_ROTATIVO = (_PROXIMO_INDICE_ROTATIVO + SIMBOLOS_POR_CICLO) % len(SIMBOLOS_BASE) if len(SIMBOLOS_BASE) > 0 else 0
     simbolos_ciclo = list(set(LISTA_PRIORIDADE + slice_rotativo))
     
-    print(f"\n{'═' * 64}\n  🔄 Scan Híbrido: {hora} | Ativos: {len(simbolos_ciclo)}\n{'═' * 64}")
+    print(f"\n{'═' * 64}\n  🔄 Scan Laranja Mecânica: {hora} | Ativos: {len(simbolos_ciclo)}\n{'═' * 64}")
 
     bases = [s.replace("USDT","") for s in simbolos_ciclo]
     cg_dados = obter_dados_coingecko(bases)
     time.sleep(1.0)
-
-    sinais_encontrados = []
 
     for symbol in simbolos_ciclo:
         base = symbol.replace("USDT","")
         info_cg = cg_dados.get(base, {})
         rank = info_cg.get("rank", 9999)
         vol_24h = info_cg.get("volume_24h", 0)
-        change_24h = info_cg.get("price_change_24h", 0)
 
         if symbol not in LISTA_PRIORIDADE:
             if rank > COINGECKO_RANK or vol_24h < VOLUME_MIN_24H: continue
 
-        df_1h = obter_klines(symbol, "1h")
-        time.sleep(0.2) # Delay para evitar Rate Limit na Binance
+        # Verifica cada timeframe suportado
+        for tf, perfil in PERFIS_MECANICA.items():
+            df = obter_klines(symbol, tf)
+            time.sleep(0.1) # Breve delay para respeitar limites da API
 
-        s_laranja = detectar_padrao_laranja(df_1h, "1h") if df_1h is not None else None
-        
-        if s_laranja:
-            print(f"  🎯 {symbol:<10} → 🍊 LARANJA SHORT!")
-            sinais_encontrados.append({"symbol": symbol, "detalhes": s_laranja, "change": change_24h})
-
-    if sinais_encontrados:
-        print(f"\n{'═' * 64}\n  📋 SINAIS ENCONTRADOS\n{'═' * 64}")
-        for s in sinais_encontrados:
-            det = s["detalhes"]
-            symbol = s["symbol"]
-            preco = det['preco']
-            tp = preco * 0.95 
-            sl = preco * 1.10 
-            estimativa_candles = estimar_tempo_alvo(preco, tp, det.get("atr", 0))
+            s_mecanica = detectar_laranja_mecanica(df, tf) if df is not None else None
             
-            msg = (
-                f"🍊 *SINAL DETECTADO: LARANJA SHORT*\n"
-                f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"💎 *Ativo:* `{symbol}`\n"
-                f"⌛ *Timeframe:* `1 Hora (1H)`\n"
-                f"📈 *Preço de Entrada:* `{preco:.4f}`\n"
-                f"🎯 *Alvo (Take Profit):* `{tp:.4f}` (-5%)\n"
-                f"🛑 *Stop (Stop Loss):* `{sl:.4f}` (+10%)\n"
-                f"⏱️ *Estimativa p/ Alvo:* `{estimativa_candles} candles` (~{estimativa_candles}h)\n"
-                f"⚖️ *Alavancagem Sugerida:* 5x\n"
-                f"📊 *Score:* {det['score']}/10\n"
-                f"━━━━━━━━━━━━━━━━━━━━━━"
-            )
-            enviar_telegram(msg)
-            print(f"  {symbol:<12} 🍊 SHORT {preco:>10.4f} Score: {det['score']}")
-    else:
-        print("\n  ❌ Nenhuma oportunidade Laranja Short neste ciclo.")
+            if s_mecanica:
+                print(f"  🎯 {symbol:<10} [{tf}] → 🍊 LARANJA MECÂNICA!")
+                preco = s_mecanica['preco']
+                tp = preco * perfil["tp"]
+                sl = preco * perfil["sl"]
+                estimativa = estimar_tempo_alvo(preco, tp, s_mecanica.get("atr", 0))
+                
+                # Texto de destaque para o timeframe
+                tf_label = f"「{tf.upper()}」"
+                
+                msg = (
+                    f"💎 *{tf_label} LARANJA MECÂNICA*\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"🔸 *Ativo:* `{symbol}`\n"
+                    f"🕒 *Timeframe:* `{tf.upper()}`\n"
+                    f"📉 *Entrada (Short):* `{preco:.4f}`\n"
+                    f"🎯 *Alvo (TP):* `{tp:.4f}` ({round((perfil['tp']-1)*100, 1)}%)\n"
+                    f"🛑 *Stop (SL):* `{sl:.4f}` (+{round((perfil['sl']-1)*100, 1)}%)\n"
+                    f"⏱️ *Estimativa:* `{estimativa} velas` (~{estimativa}{tf[-1]})\n"
+                    f"⚖️ *Alavancagem:* 5x\n"
+                    f"📊 *Score:* {s_mecanica['score']}/10\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━"
+                )
+                enviar_telegram(msg)
 
 def iniciar_loop():
     global SIMBOLOS_BASE
     print("\n╔════════════════════════════════════════════════════════════╗")
-    print("║     GIDEON SENTINEL — FOCO LARANJA SHORT (1H)              ║")
-    print(f"║     Monitorando {len(LISTA_PRIORIDADE)} ativos prioritários.               ║")
+    print("║     GIDEON SENTINEL — LARANJA MECÂNICA                     ║")
+    print(f"║     Monitorando 30m, 1h e 4h para {len(LISTA_PRIORIDADE)} ativos.           ║")
     
     todos = obter_todos_simbolos_binance()
     if todos:
         SIMBOLOS_BASE = [s for s in todos if s not in LISTA_PRIORIDADE]
-        print(f"║     Scan Rotativo de {len(SIMBOLOS_BASE)} outros ativos ativos.           ║")
+        print(f"║     Outros {len(SIMBOLOS_BASE)} ativos em scan rotativo.                ║")
     print("╚════════════════════════════════════════════════════════════╝\n")
 
     while True:
@@ -288,7 +278,6 @@ def iniciar_loop():
             break
         except Exception as e:
             print(f"\n  ⚠️ Erro inesperado no loop: {e}")
-            print("  Retentando em 60 segundos...")
             time.sleep(60)
 
 if __name__ == "__main__":
