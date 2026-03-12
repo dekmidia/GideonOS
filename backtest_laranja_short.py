@@ -15,7 +15,11 @@ PERIODOS_RSI = 14
 PERIODOS_BB  = 20
 DESVIO_BB    = 2
 FILTRO_RSI_MIN = 60 # Só entra se RSI > 60 (Exaustão)
-DIAS_HISTORICO = 90  # Período de teste atual
+# --- CONFIGS ICHIMOKU ---
+ICHIMOKU_TENKAN = 9
+ICHIMOKU_KIJUN = 26
+ICHIMOKU_SENKOU_B = 52
+DIAS_HISTORICO = 90  # Começando teste manual V3 por 30 dias
 
 
 PARES_BACKTEST = [
@@ -70,6 +74,25 @@ def adicionar_indicadores(df):
     df['std20'] = df['close'].rolling(window=PERIODOS_BB).std()
     df['bb_upper'] = df['ma20'] + (DESVIO_BB * df['std20'])
     
+    # Ichimoku Cloud
+    # Tenkan-sen (Conversion Line): (9-period high + 9-period low) / 2
+    period9_high = df['high'].rolling(window=ICHIMOKU_TENKAN).max()
+    period9_low = df['low'].rolling(window=ICHIMOKU_TENKAN).min()
+    df['tenkan'] = (period9_high + period9_low) / 2
+    
+    # Kijun-sen (Base Line): (26-period high + 26-period low) / 2
+    period26_high = df['high'].rolling(window=ICHIMOKU_KIJUN).max()
+    period26_low = df['low'].rolling(window=ICHIMOKU_KIJUN).min()
+    df['kijun'] = (period26_high + period26_low) / 2
+    
+    # Senkou Span A (Leading Span A): (Standard Line + Turning Line) / 2
+    df['senkou_a'] = ((df['tenkan'] + df['kijun']) / 2).shift(ICHIMOKU_KIJUN)
+    
+    # Senkou Span B (Leading Span B): (52-period high + 52-period low) / 2
+    period52_high = df['high'].rolling(window=ICHIMOKU_SENKOU_B).max()
+    period52_low = df['low'].rolling(window=ICHIMOKU_SENKOU_B).min()
+    df['senkou_b'] = ((period52_high + period52_low) / 2).shift(ICHIMOKU_KIJUN)
+    
     return df
 
 def detectar_padrao_laranja(janela_df):
@@ -100,6 +123,11 @@ def detectar_padrao_laranja(janela_df):
     # 2. Filtro de RSI (Deve estar em zona de exaustão)
     if gatilho["rsi"] < FILTRO_RSI_MIN: return None
         
+    # 3. FILTRO ICHIMOKU CLOUD (V3) - Preco abaixo da nuvem (Tendencia Bearish)
+    # A nuvem eh formada por Senkou A e Senkou B
+    nuvem_topo = max(gatilho["senkou_a"], gatilho["senkou_b"])
+    if gatilho["close"] > nuvem_topo: return None
+    
     return {
         "preco": gatilho["close"], 
         "corpo": corpo_gatilho, 

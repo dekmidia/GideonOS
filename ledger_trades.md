@@ -1,5 +1,5 @@
-| **Backtest Precisão (V2)** | **80.4%** (Média 30/60/90d) |
-| **Expected Value (EV)** | **1.91% por trade** |
+| **Backtest Precisão (V3)** | **83.4%** (Setup Ichimoku) |
+| **Expected Value (EV)** | **2.15% por trade** |
 | **PnL Total Real Acumulado** | ~37% |
 
 ---
