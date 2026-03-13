@@ -119,23 +119,23 @@ def api_monitor():
                 pnl = ((entry_price / curr_price) - 1) * 100 * 8
                 
                 # --- LÓGICA DE DECISÃO AVANÇADA (MARCELO VEGA V3) ---
-                status = 'MANTER'
+                status = 'TUDO CERTO: SEGURAR'
                 
                 # 1. Se o preço cruzar a nuvem de 4H para cima (Reversão de Tendência ❌)
                 if side.lower() == 'short' and curr_price > kumo_top_4h:
-                    status = 'ALERTA: REVERSÃO 4H ⚠️'
+                    status = 'PERIGOSO: SAIR AGORA'
                 
                 # 2. Se estiver em lucro e RSI estiver baixo (Hora de realizar ✅)
                 elif rsi_4h < 45:
-                    status = 'REALIZAR LUCRO? 🎯'
+                    status = 'LUCRO NO BOLSO?'
                 
                 # 3. Se estiver no prejuízo mas RSI 4H estiver extremo (Oportunidade de volta 🔄)
                 elif rsi_4h > 75 and pnl < 0:
-                    status = 'EXAUSTÃO: AGUARDAR'
+                    status = 'CALMA: VAI VOLTAR'
                 
                 # 4. Caso padrão de Ponto de Equilíbrio
                 if (side.lower() == 'short' and curr_price <= entry_price):
-                    status = 'BE ALCANÇADO (STOP BE)'
+                    status = 'PROTEÇÃO: NO ZERO'
 
                 positions.append({
                     'symbol': symbol,

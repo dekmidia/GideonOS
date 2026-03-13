@@ -1,11 +1,11 @@
 const API_URL = 'http://127.0.0.1:5000/api';
 
 const STATUS_EXPLAIN = {
-    'MANTER': 'A estratégia segue válida. O ativo está dentro dos parâmetros esperados de volatilidade.',
-    'ALERTA: REVERSÃO 4H ⚠️': 'O preço rompeu a Nuvem de Ichimoku de 4H para cima. Isso invalida a tendência de baixa local e indica alto risco para o Short.',
-    'REALIZAR LUCRO? 🎯': 'O RSI de 4H caiu abaixo de 45. O momentum de queda está perdendo força. Considere fechar ou realizar parcial.',
-    'EXAUSTÃO: AGUARDAR': 'O RSI de 4H está muito alto (>75), indicando que o preço está esticado e deve corrigir para baixo em breve. Segure a posição.',
-    'BE ALCANÇADO (STOP BE)': 'O preço atingiu seu ponto de entrada. Proteja seu capital movendo o Stop Loss para este valor.'
+    'TUDO CERTO: SEGURAR': 'Tudo sob controle. O plano continua o mesmo: manter a posição e esperar o preço baixar.',
+    'PERIGOSO: SAIR AGORA': 'Atenção! O mercado virou contra nós agora. O risco aumentou muito e pode ser melhor sair da posição.',
+    'LUCRO NO BOLSO?': 'Hora de colher! O preço já caiu bastante. Pode ser uma boa hora para garantir o seu lucro agora.',
+    'CALMA: VAI VOLTAR': 'Fique tranquilo. O preço subiu demais e está cansado. Ele deve voltar a cair em breve, então vale a pena esperar.',
+    'PROTEÇÃO: NO ZERO': 'Ponto de Segurança! O preço voltou para onde você entrou. Proteja-se para não sair no prejuízo.'
 };
 
 // --- LOGICA TRADING VIEW ---
