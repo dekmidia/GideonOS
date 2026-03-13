@@ -5,7 +5,12 @@
 ---
 
 ## 🟢 Posições Abertas
-*Nenhuma posição aberta no momento.*
+| Data | Par | Tipo | Estratégia | Alavancagem | Preço Entrada | Alvo (TP) | Stop (SL) |
+|:---:|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| 12/03/26 | **JTOUSDT** | Short | Laranja V3 | 8x | 0.2724 | 0.2724* | 0.2994 |
+| 12/03/26 | **IMXUSDT** | Short | Laranja V3 | 8x | 0.1649 | 0.1649* | 0.1850 |
+
+*\*Alvos de JTO e IMX ajustados para Break-even (Gestão de Crise de 12/03).*
 
 ---
 
