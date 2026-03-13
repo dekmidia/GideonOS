@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gideon Sentinel | Laranja Mecânica V3</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <script src="https://s3.tradingview.com/tv.js"></script>
+</head>
+<body>
+    <div class="glass-container">
+        <header>
+            <div class="logo">
+                <span class="neon-text">GIDEON</span> SENTINEL
+            </div>
+            <div class="status-bar">
+                <div id="connection-status" class="status-dot"></div>
+                <span id="time-display">00:00:00</span>
+            </div>
+        </header>
+
+        <main>
+            <!-- SEÇÃO DE MONITORAMENTO DE CARTEIRA -->
+            <section id="portfolio">
+                <div class="section-header">
+                    <h2>CARTEIRA ATIVA</h2>
+                    <span class="badge">LEDGER MONITOR</span>
+                </div>
+                <div id="portfolio-grid" class="grid-container">
+                    <div class="loading-spinner">Sincronizando com Ledger...</div>
+                </div>
+            </section>
+
+            <!-- SEÇÃO DE SCANNER DE MERCADO -->
+            <section id="scanner">
+                <div class="section-header">
+                    <h2>SENTINELA SCANNER</h2>
+                    <span class="badge neon-orange">LIVE V3</span>
+                </div>
+                <table class="glass-table">
+                    <thead>
+                        <tr>
+                            <th>SÍMBOLO</th>
+                            <th>PREÇO</th>
+                            <th>RSI 4H</th>
+                            <th>B. BAND (1H)</th>
+                            <th>STATUS</th>
+                        </tr>
+                    </thead>
+                    <tbody id="scanner-body">
+                        <tr>
+                            <td colspan="5" style="text-align: center;">Iniciando varredura de mercado...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+        </main>
+
+        <footer>
+            <div class="log-area" id="log-display">
+                [SYSTEM] Bem-vindo, Operador. Sistema Laranja Mecânica V3 pronto.
+            </div>
+        </footer>
+    </div>
+
+    <!-- MODAL DE GRÁFICO -->
+    <div id="chart-modal" class="modal-overlay">
+        <div class="modal-content glass-bg">
+            <div class="modal-header">
+                <h3 id="modal-symbol">SÍMBOLO</h3>
+                <button id="close-modal" class="close-btn">&times;</button>
+            </div>
+            <div id="tradingview-container" class="chart-container"></div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
