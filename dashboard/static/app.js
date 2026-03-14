@@ -1,5 +1,35 @@
 const API_URL = 'http://127.0.0.1:5000/api';
 
+// --- SISTEMA DE NOTIFICAÇÕES TOAST ---
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    
+    const icons = {
+        success: '✅',
+        error: '❌',
+        info: 'ℹ️',
+        gold: '🏆'
+    };
+    
+    toast.innerHTML = `
+        <span class="toast-icon">${icons[type] || '🔔'}</span>
+        <span>${message}</span>
+    `;
+    
+    container.appendChild(toast);
+    
+    // Forçar reflow para animação
+    setTimeout(() => toast.classList.add('show'), 10);
+    
+    // Remover após 4 segundos
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 400);
+    }, 4000);
+}
+
 function getExplanation(status, side) {
     const isShort = side.toLowerCase() === 'short';
     
@@ -125,7 +155,7 @@ confirmOrderBtn.onclick = async () => {
         const data = await res.json();
 
         if (data.status === 'success') {
-            alert(data.message);
+            showToast(`Ordem de ${activeOrderData.side} enviada para ${activeOrderData.symbol}!`, 'success');
             orderModal.style.display = 'none';
             // Após sucesso na BingX, registra no Ledger local com TF e TTT
             await fetch(`${API_URL}/entry`, {
@@ -141,10 +171,10 @@ confirmOrderBtn.onclick = async () => {
             });
             updatePortfolio();
         } else {
-            alert(`Erro: ${data.message}`);
+            showToast(`Erro na BingX: ${data.message}`, 'error');
         }
     } catch (err) {
-        alert('Erro ao conectar com o Servidor.');
+        showToast('Erro ao conectar com o Servidor.', 'error');
     } finally {
         confirmOrderBtn.disabled = false;
         confirmOrderBtn.innerText = 'EXECUTAR NA BINGX';
@@ -245,7 +275,7 @@ async function handleExit(symbol) {
         });
         const result = await response.json();
         if (result.status === 'success') {
-            alert(result.message);
+            showToast(`Posição de ${symbol} encerrada com sucesso.`, 'info');
             updatePortfolio();
         }
     } catch (err) {
@@ -272,19 +302,22 @@ async function updatePortfolio() {
             return;
         }
 
+        let totalPnl = 0;
         positions.forEach(pos => {
             const card = document.createElement('div');
             card.className = 'card';
-            // Removido clique do card inteiro
             
-            const isProfit = pos.pnl >= 0;
+            const pnlValue = parseFloat(pos.pnl) || 0;
+            totalPnl += pnlValue;
+            
+            const isProfit = pnlValue >= 0;
             const pnlClass = isProfit ? 'green' : 'red';
             const explanation = getExplanation(pos.status, pos.side);
             
             card.innerHTML = `
                 <div class="card-header">
-                    <span class="symbol-name" onclick="openChart('${pos.symbol}')" style="cursor: pointer;">${pos.symbol} <small style="font-size: 0.6rem; color: #94a3b8;">(${pos.tf})</small></span>
-                    <span class="pnl-badge ${pnlClass}">${isProfit ? '+' : ''}${pos.pnl}%</span>
+                    <span class="symbol-name" onclick="openChart('${pos.symbol}')" style="cursor: pointer;">${pos.symbol} <small style="font-size: 0.6rem; color: #94a3b8;">(${pos.side} - ${pos.tf})</small></span>
+                    <span class="pnl-badge ${pnlClass}">${isProfit ? '+' : ''}${pnlValue.toFixed(2)}%</span>
                 </div>
                 <div class="card-body">
                     <div class="data-item">
@@ -297,7 +330,7 @@ async function updatePortfolio() {
                     </div>
                     <div class="data-item">
                         <span class="label">EXPECTATIVA (TTT)</span>
-                        <span class="value">${pos.ttt}</span>
+                        <span class="value expectancy-ttt">${pos.ttt}</span>
                     </div>
                     <div class="data-item">
                         <span class="label">STATUS / RSI</span>
@@ -306,7 +339,7 @@ async function updatePortfolio() {
                             <div class="tooltip">${explanation}</div>
                         </div>
                     </div>
-                    <div class="card-footer" style="display: flex; gap: 8px; margin-top: 15px;">
+                    <div class="card-footer" style="display: flex; gap: 8px; margin-top: 15px; grid-column: span 2;">
                         <button class="btn-action pulse-blue" style="flex: 0.3; background: var(--neon-blue); height: 40px;" onclick="event.stopPropagation(); openAnalysis('${pos.symbol}')">⚡ IA</button>
                         <button class="btn-action btn-exit" style="flex: 1; margin-top: 0; height: 40px;" onclick="event.stopPropagation(); handleExit('${pos.symbol}')">FECHAR POSIÇÃO</button>
                     </div>
@@ -314,6 +347,21 @@ async function updatePortfolio() {
             `;
             grid.appendChild(card);
         });
+
+        // ATUALIZAR BARRA DE PERFORMANCE GLOBAL
+        const activeTrades = positions.length;
+        
+        document.getElementById('global-trades').innerText = activeTrades;
+        const pnlEl = document.getElementById('global-pnl');
+        pnlEl.innerText = `${totalPnl > 0 ? '+' : ''}${totalPnl.toFixed(2)}%`;
+        pnlEl.className = `perf-value ${totalPnl >= 0 ? 'green' : 'red'}`;
+
+        // Determinar Tendência Global
+        const trendEl = document.getElementById('global-trend');
+        if (totalPnl > 2) trendEl.innerText = 'BULLISH 🔥';
+        else if (totalPnl < -2) trendEl.innerText = 'BEARISH 📉';
+        else trendEl.innerText = 'NEUTRO';
+
     } catch (err) {
         console.error('Erro ao atualizar carteira:', err);
     }
@@ -333,6 +381,7 @@ async function manualScan() {
     
     tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--neon-orange);">Executando varredura multithread em +120 moedas...</td></tr>';
     logArea.innerText = `[SCANNER] Iniciando varredura manual em ${new Date().toLocaleTimeString()}...`;
+    showToast('Iniciando varredura em 120+ moedas...', 'info');
 
     // Animação fake para dar sensação de progresso enquanto a API processa
     let progress = 0;
@@ -347,6 +396,7 @@ async function manualScan() {
         await updateScanner();
         progressBar.style.width = '100%';
         logArea.innerText = `[SCANNER] Varredura finalizada com sucesso!`;
+        showToast('Scanner finalizado. Novas oportunidades disponíveis!', 'success');
     } catch (err) {
         logArea.innerText = `[SCANNER] Falha na varredura.`;
     } finally {
@@ -394,7 +444,11 @@ async function updateScanner() {
             const row = document.createElement('tr');
             row.style.cursor = 'pointer';
             
-            // Clique na linha removido
+            // Destaque para Sinais de Ouro
+            if (parseFloat(sig.score) >= 8.5) {
+                row.classList.add('gold-signal');
+                console.log(`[UX] Sinal de Ouro detectado: ${sig.symbol}`);
+            }
             
             const side = sig.side || (sig.status.includes('SHORT') || sig.status.includes('LARANJA') ? 'Short' : 'Long');
             const statusClass = side === 'Short' ? 'alert-short' : 'maduro';

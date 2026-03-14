@@ -22,6 +22,21 @@
             </div>
         </header>
 
+        <div class="performance-bar glass-bg">
+            <div class="perf-item">
+                <span class="perf-label">PNL TOTAL ATIVO</span>
+                <span id="global-pnl" class="perf-value">---%</span>
+            </div>
+            <div class="perf-item">
+                <span class="perf-label">OPERAÇÕES</span>
+                <span id="global-trades" class="perf-value">0</span>
+            </div>
+            <div class="perf-item">
+                <span class="perf-label">TENDÊNCIA GLOBAL</span>
+                <span id="global-trend" class="perf-value">NEUTRO</span>
+            </div>
+        </div>
+
         <main>
             <!-- TABS NAVIGATION -->
             <nav class="tabs-nav">
@@ -169,6 +184,9 @@
             </div>
         </div>
     </div>
+
+    <!-- NOTIFICAÇÕES TOAST -->
+    <div id="toast-container" class="toast-container"></div>
 
     <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
