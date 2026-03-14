@@ -31,6 +31,13 @@ PERFIS_MECANICA = {
     "4h":  {"tp": 0.950, "sl": 1.100, "emoji": "🕓"}  # -5% / +10%
 }
 
+# PERFIS RSI MOMENTUM (LONG)
+PERFIS_RSI_MOMENTUM = {
+    "1m":  {"tp": 1.015, "sl": 0.990, "emoji": "🚀"},
+    "5m":  {"tp": 1.030, "sl": 0.980, "emoji": "⚡"},
+    "15m": {"tp": 1.050, "sl": 0.970, "emoji": "💎"}
+}
+
 def calcular_atr(df, period=14):
     try:
         high_low = df['h'] - df['l']
@@ -52,7 +59,8 @@ def estimar_tempo_alvo(preco, alvo, atr):
 
 def get_data(symbol, interval, limit=100):
     try:
-        url = f'https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}'
+        # BTCDOMUSDT só existe nos Futuros
+        url = f'https://fapi.binance.com/fapi/v1/klines?symbol={symbol}&interval={interval}&limit={limit}' if "DOM" in symbol else f'https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}'
         r = requests.get(url, timeout=5).json()
         if not isinstance(r, list): return None
         df = pd.DataFrame(r, columns=['t','o','h','l','c','v','ct','q','tr','tb','tg','i'])
@@ -111,18 +119,28 @@ def calc_ichimoku(df):
     except:
         return 0, 0, 0
 
-def get_btc_status():
-    """Analisa a tendência do BTC para filtro de correlação."""
+def validar_altseason():
+    """Valida cenário macro e retorna status formatado."""
     try:
-        df = get_data('BTCUSDT', '1h', 24)
-        if df is None: return "NEUTRO"
-        curr_price = df['c'].iloc[-1]
-        prev_price = df['c'].iloc[-2]
-        change = ((curr_price - prev_price) / prev_price) * 100
-        if change > 0.3: return "ALTA"
-        if change < -0.3: return "BAIXA"
-        return "NEUTRO"
-    except: return "NEUTRO"
+        df_btc = get_data('BTCUSDT', '1h', 50)
+        df_dom = get_data('BTCDOMUSDT', '1h', 50)
+        if df_btc is None or df_dom is None: return False, "NEUTRO"
+        
+        sma_dom = df_dom['c'].rolling(20).mean().iloc[-1]
+        dom_atual = df_dom['c'].iloc[-1]
+        sma_btc = df_btc['c'].rolling(20).mean().iloc[-1]
+        btc_atual = df_btc['c'].iloc[-1]
+        
+        altseason = dom_atual < sma_dom and btc_atual > (sma_btc * 0.995)
+        status = "🌟 ALTSEASON ATIVA" if altseason else "⚠️ BTC DOMINANTE"
+        return altseason, status
+    except:
+        return False, "NEUTRO"
+
+def get_btc_status():
+    """Versão simplificada para a barra de performance do dashboard."""
+    _, status = validar_altseason()
+    return status
 
 def get_multi_timeframe_analysis(symbol):
     """Realiza análise técnica em 6 tempos gráficos."""
@@ -290,6 +308,29 @@ def detectar_laranja_mecanica(df, interval):
         "atr": calcular_atr(df)
     }
 
+def detectar_rsi_momentum(df, interval):
+    if df is None or len(df) < 20: return None
+    
+    # Manual RSI para evitar dependências extras
+    delta = df['c'].diff()
+    gain = (delta.where(delta > 0, 0)).ewm(com=13, adjust=False).mean()
+    loss = (-delta.where(delta < 0, 0)).ewm(com=13, adjust=False).mean()
+    rs = gain / loss.replace(0, 1e-10)
+    rsi_series = 100 - (100 / (1 + rs))
+    
+    rsi_atual = rsi_series.iloc[-1]
+    rsi_anterior = rsi_series.iloc[-2]
+    gatilho = df.iloc[-1]
+    
+    if rsi_atual < 50 and rsi_atual > rsi_anterior and gatilho['c'] > gatilho['o']:
+        return {
+            "estrategia": "🚀 RSI MOMENTUM",
+            "rsi": round(rsi_atual, 1),
+            "rsi_anterior": round(rsi_anterior, 1),
+            "atr": calcular_atr(df)
+        }
+    return None
+
 @app.route('/api/scanner')
 def api_scanner():
     results = []
@@ -298,32 +339,59 @@ def api_scanner():
     
     def check_symbol(symbol):
         local_results = []
+        altseason_ativa, _ = validar_altseason()
+        
+        # 2. Análise de Raio-X IA para Veto
+        analysis = get_multi_timeframe_analysis(symbol)
+        verdict = analysis.get('verdict', '')
+        confidence = analysis.get('confidence', 0)
+        
+        # 3. Tentar Laranja Mecânica (Short)
         for tf in ['30m', '1h', '4h']:
             df = get_data(symbol, tf)
             if df is None: continue
-            
             laranja = detectar_laranja_mecanica(df, tf)
             if laranja:
+                # VETO DE SHORT: Se a IA diz que a tendência é de Alta Forte (> 65% confiança)
+                if verdict.startswith("🚀") or confidence > 65:
+                    print(f"  🚫 VETO (SHORT): {symbol} ignorado - IA detectou Alta Forte.")
+                    return []
+
                 rsi = calc_rsi(df)
                 price = df['c'].iloc[-1]
                 perfil = PERFIS_MECANICA.get(tf, PERFIS_MECANICA["1h"])
-                tp = price * perfil["tp"]
-                sl = price * perfil["sl"]
+                tp, sl = price * perfil["tp"], price * perfil["sl"]
                 estimativa = estimar_tempo_alvo(price, tp, laranja["atr"])
-                
                 local_results.append({
-                    'symbol': symbol,
-                    'price': price,
-                    'rsi4h': round(rsi, 2),
-                    'bb_upper': tf.upper(),
-                    'status': f"🔥 {laranja['estrategia']} ({tf})",
-                    'side': 'Short',
-                    'tp': round(tp, 6),
-                    'sl': round(sl, 6),
-                    'estimativa': f"{estimativa} velas",
-                    'score': 10 if rsi > 70 else 8
+                    'symbol': symbol, 'price': price, 'rsi4h': round(rsi, 2),
+                    'bb_upper': tf.upper(), 'status': f"🍊 {laranja['estrategia']} ({tf})",
+                    'side': 'Short', 'tp': round(tp, 6), 'sl': round(sl, 6),
+                    'estimativa': f"{estimativa} velas", 'score': 10 if (rsi > 70 and confidence < 40) else 8
                 })
-                break
+                return local_results 
+        
+        # 4. Tentar RSI Momentum (Long) se Altseason Ativa
+        if altseason_ativa:
+            # VETO DE LONG: Se a IA diz que a tendência é de Queda
+            if verdict.startswith("📉") or confidence < 35:
+                print(f"  🚫 VETO (LONG): {symbol} ignorado - IA detectou Queda ou Incerteza.")
+                return []
+
+            for tf in ['1m', '5m', '15m']:
+                df = get_data(symbol, tf)
+                if df is None: continue
+                rsi_m = detectar_rsi_momentum(df, tf)
+                if rsi_m:
+                    price = df['c'].iloc[-1]
+                    perfil = PERFIS_RSI_MOMENTUM.get(tf, PERFIS_RSI_MOMENTUM["1m"])
+                    tp, sl = price * perfil["tp"], price * perfil["sl"]
+                    local_results.append({
+                        'symbol': symbol, 'price': price, 'rsi4h': rsi_m['rsi'],
+                        'bb_upper': tf.upper(), 'status': f"🚀 {rsi_m['estrategia']} ({tf})",
+                        'side': 'Long', 'tp': round(tp, 6), 'sl': round(sl, 6),
+                        'estimativa': "Rápida", 'score': 10 if rsi_m['rsi'] < 30 else 8
+                    })
+                    return local_results
         return local_results
 
     print(f"\n🚀 [SCANNER] Iniciando varredura manual: {total_to_process} moedas...")
@@ -425,7 +493,12 @@ def api_monitor():
                         'ttt': parts[4]
                     })
                 except: continue
-        return jsonify(positions)
+        # Status Macro para o Dashboard
+        _, macro_status = validar_altseason()
+        return jsonify({
+            'positions': positions,
+            'macro': macro_status
+        })
     except Exception as e:
         print(f"❌ [MONITOR] Erro crítico: {e}")
         return jsonify({'error': str(e)}), 500

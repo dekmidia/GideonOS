@@ -298,8 +298,18 @@ async function handleExit(symbol) {
 async function updatePortfolio() {
     try {
         const response = await fetch(`${API_URL}/monitor`);
-        const positions = await response.json();
+        const data = await response.json();
         
+        let positions = [];
+        let macroStatus = "NEUTRO";
+
+        if (data && data.positions) {
+            positions = data.positions;
+            macroStatus = data.macro;
+        } else if (Array.isArray(data)) {
+            positions = data;
+        }
+
         const grid = document.getElementById('portfolio-grid');
         grid.innerHTML = '';
 
@@ -368,11 +378,12 @@ async function updatePortfolio() {
         pnlEl.innerText = `${totalPnl > 0 ? '+' : ''}${totalPnl.toFixed(2)}%`;
         pnlEl.className = `perf-value ${totalPnl >= 0 ? 'green' : 'red'}`;
 
-        // Determinar Tendência Global
+        // Determinar Tendência Global (vinda do Servidor)
         const trendEl = document.getElementById('global-trend');
-        if (totalPnl > 2) trendEl.innerText = 'BULLISH 🔥';
-        else if (totalPnl < -2) trendEl.innerText = 'BEARISH 📉';
-        else trendEl.innerText = 'NEUTRO';
+        trendEl.innerText = macroStatus;
+        if (macroStatus.includes('ALTSEASON')) trendEl.style.color = 'var(--win-green)';
+        else if (macroStatus.includes('DOMINANTE')) trendEl.style.color = 'var(--neon-orange)';
+        else trendEl.style.color = 'white';
 
     } catch (err) {
         console.error('Erro ao atualizar carteira:', err);

@@ -13,6 +13,7 @@ from datetime import datetime
 import time
 import os
 from dotenv import load_dotenv
+import concurrent.futures
 
 # Carrega variáveis de ambiente do arquivo .env
 load_dotenv()
@@ -57,6 +58,13 @@ PERFIS_MECANICA = {
     "4h":  {"tp": 0.950, "sl": 1.100, "emoji": "🕓"}  # -5% / +10%
 }
 
+# PERFIS RSI MOMENTUM (LONG)
+PERFIS_RSI_MOMENTUM = {
+    "1m":  {"tp": 1.015, "sl": 0.990, "emoji": "🚀"}, # +1.5% / -1.0%
+    "5m":  {"tp": 1.030, "sl": 0.980, "emoji": "⚡"}, # +3.0% / -2.0%
+    "15m": {"tp": 1.050, "sl": 0.970, "emoji": "💎"}  # +5.0% / -3.0%
+}
+
 _PROXIMO_INDICE_ROTATIVO = 0
 
 # ─────────────────────────────────────────────────
@@ -88,9 +96,10 @@ def obter_todos_simbolos_binance() -> list[str]:
     return []
 
 def obter_klines(symbol: str, interval: str, limit: int = LIMITE_CANDLES) -> pd.DataFrame | None:
-    url = "https://api.binance.com/api/v3/klines"
+    # BTCDOMUSDT só existe nos Futuros
+    base_url = "https://fapi.binance.com/fapi/v1/klines" if "DOM" in symbol else "https://api.binance.com/api/v3/klines"
     try:
-        resp = requests.get(url, params={"symbol": symbol, "interval": interval, "limit": limit}, timeout=10)
+        resp = requests.get(base_url, params={"symbol": symbol, "interval": interval, "limit": limit}, timeout=10)
         if resp.status_code != 200: return None
         raw = resp.json()
         df = pd.DataFrame(raw, columns=[
@@ -166,6 +175,97 @@ def detectar_laranja_mecanica(df: pd.DataFrame, interval: str) -> dict | None:
         "score": 10 if rsi > 70 else 8
     }
 
+def detectar_rsi_momentum(df: pd.DataFrame, interval: str) -> dict | None:
+    """Estratégia RSI Momentum < 50: Recuperação de fundo."""
+    if df is None or len(df) < 20: return None
+    
+    rsi_series = calcular_rsi(df["close"])
+    rsi_atual = rsi_series.iloc[-1]
+    rsi_anterior = rsi_series.iloc[-2]
+    
+    gatilho = df.iloc[-1]
+    
+    # Condições: RSI < 50 AND RSI subindo AND Vela Verde
+    if rsi_atual < 50 and rsi_atual > rsi_anterior and gatilho["close"] > gatilho["open"]:
+        return {
+            "estrategia": "RSI Momentum",
+            "timeframe": interval,
+            "preco": gatilho["close"],
+            "rsi": round(rsi_atual, 1),
+            "rsi_anterior": round(rsi_anterior, 1),
+            "atr": calcular_atr(df),
+            "score": 10 if rsi_atual < 30 else 8
+        }
+    return None
+
+def validar_altseason() -> bool:
+    """Valida se o cenário macro é favorável para Altcoins."""
+    try:
+        # BTCDOM e BTC no timeframe de 1h para filtro macro
+        df_btc = obter_klines("BTCUSDT", "1h", 50)
+        df_dom = obter_klines("BTCDOMUSDT", "1h", 50) # Futuros na Binance
+        
+        if df_btc is None or df_dom is None: return True # Fallback seguro
+        
+        # Dominância caindo? (Preço abaixo da SMA 20)
+        sma_dom = df_dom["close"].rolling(20).mean().iloc[-1]
+        dom_atual = df_dom["close"].iloc[-1]
+        
+        # BTC estável ou subindo? (Acima da SMA 20 ou quase)
+        sma_btc = df_btc["close"].rolling(20).mean().iloc[-1]
+        btc_atual = df_btc["close"].iloc[-1]
+        
+        caindo_dom = dom_atual < sma_dom
+        btc_ok = btc_atual > (sma_btc * 0.995)
+        
+        return caindo_dom and btc_ok
+    except:
+        return True
+
+def calc_ichimoku(df):
+    try:
+        tenkan = (df['high'].rolling(9).max() + df['low'].rolling(9).min()) / 2
+        kijun = (df['high'].rolling(26).max() + df['low'].rolling(26).min()) / 2
+        senkou_a = ((tenkan + kijun) / 2).shift(26)
+        senkou_b = ((df['high'].rolling(52).max() + df['low'].rolling(52).min()) / 2).shift(26)
+        price = df['close'].iloc[-1]
+        sa = senkou_a.iloc[-1]
+        sb = senkou_b.iloc[-1]
+        return price, max(sa, sb), min(sa, sb)
+    except: return 0, 0, 0
+
+def obter_analise_raiox(symbol):
+    """Realiza análise técnica multitempo para o sistema de veto."""
+    intervals = ['1m', '5m', '15m', '30m', '1h', '4h']
+    analysis = {}
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+        future_to_int = {executor.submit(obter_klines, symbol, i, 100): i for i in intervals}
+        for future in concurrent.futures.as_completed(future_to_int):
+            interval = future_to_int[future]
+            try:
+                df = future.result()
+                if df is not None:
+                    rsi = calcular_rsi(df['close']).iloc[-1]
+                    price, sa, sb = calc_ichimoku(df)
+                    above_cloud = df.iloc[-1]['close'] > sa
+                    below_cloud = df.iloc[-1]['close'] < sb
+                    trend = "ALTA" if above_cloud else ("BAIXA" if below_cloud else "NEUTRO")
+                    analysis[interval] = {"rsi": rsi, "trend": trend}
+            except: pass
+    
+    # Motor de Veredito (Simplificado para o Bot)
+    weights = {'4h': 2.0, '1h': 1.8, '30m': 1.5, '15m': 1.5, '5m': 1.2, '1m': 0.8}
+    total_weight = sum(weights.values())
+    bull_score = 0
+    for i, w in weights.items():
+        if i in analysis:
+            if analysis[i]['trend'] == "ALTA": bull_score += w
+            elif analysis[i]['trend'] == "NEUTRO": bull_score += (w / 2)
+            
+    confidence = (bull_score / (total_weight or 1)) * 100
+    return {"confidence": confidence, "verdict": "ALTA" if confidence > 60 else ("BAIXA" if confidence < 40 else "NEUTRO")}
+
 # ─────────────────────────────────────────────────
 # COLETA — COINGECKO
 # ─────────────────────────────────────────────────
@@ -214,7 +314,16 @@ def scan_mercado():
     cg_dados = obter_dados_coingecko(bases)
     time.sleep(1.0)
 
+    # Filtro Macro de Altseason
+    altseason_ativa = validar_altseason()
+    status_macro = "🌟 ALTSEASON ATIVA" if altseason_ativa else "⚠️ BTC DOMINANTE"
+    print(f"  📢 Macro Status: {status_macro}")
+
     for symbol in simbolos_ciclo:
+        # Raio-X Prévio para o Sistema de Veto
+        raiox = obter_analise_raiox(symbol)
+        conf = raiox['confidence']
+        
         base = symbol.replace("USDT","")
         info_cg = cg_dados.get(base, {})
         rank = info_cg.get("rank", 9999)
@@ -223,37 +332,65 @@ def scan_mercado():
         if symbol not in LISTA_PRIORIDADE:
             if rank > COINGECKO_RANK or vol_24h < VOLUME_MIN_24H: continue
 
-        # Verifica cada timeframe suportado
-        for tf, perfil in PERFIS_MECANICA.items():
-            df = obter_klines(symbol, tf)
-            time.sleep(0.1) # Breve delay para respeitar limites da API
+        # --- 1. ESTRATÉGIA LARANJA MECÂNICA (SHORT) ---
+        # VETO: Se IA detectou tendência de ALTA (> 65% confiança)
+        if conf > 65:
+            pass # Veto aplicado
+        else:
+            for tf, perfil in PERFIS_MECANICA.items():
+                df = obter_klines(symbol, tf)
+                time.sleep(0.05)
+                s_mecanica = detectar_laranja_mecanica(df, tf) if df is not None else None
+                
+                if s_mecanica:
+                    print(f"  🎯 {symbol:<10} [{tf}] → 🍊 LARANJA MECÂNICA!")
+                    preco = s_mecanica['preco']
+                    tp, sl = preco * perfil["tp"], preco * perfil["sl"]
+                    estimativa = estimar_tempo_alvo(preco, tp, s_mecanica.get("atr", 0))
+                    
+                    msg = (
+                        f"💎 *{tf.upper()} LARANJA MECÂNICA*\n"
+                        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"🔸 *Ativo:* `{symbol}`\n"
+                        f"🕒 *Timeframe:* `{tf.upper()}`\n"
+                        f"📉 *Entrada (Short):* `{preco:.4f}`\n"
+                        f"🎯 *Alvo (TP):* `{tp:.4f}` ({round((perfil['tp']-1)*100, 1)}%)\n"
+                        f"🛑 *Stop (SL):* `{sl:.4f}` (+{round((perfil['sl']-1)*100, 1)}%)\n"
+                        f"⏱️ *Estimativa:* `{estimativa} velas`\n"
+                        f"📊 *Score:* {s_mecanica['score']}/10\n"
+                        f"📊 *IA Confiança:* {conf:.1f}%\n"
+                        f"━━━━━━━━━━━━━━━━━━━━━━"
+                    )
+                    enviar_telegram(msg)
 
-            s_mecanica = detectar_laranja_mecanica(df, tf) if df is not None else None
-            
-            if s_mecanica:
-                print(f"  🎯 {symbol:<10} [{tf}] → 🍊 LARANJA MECÂNICA!")
-                preco = s_mecanica['preco']
-                tp = preco * perfil["tp"]
-                sl = preco * perfil["sl"]
-                estimativa = estimar_tempo_alvo(preco, tp, s_mecanica.get("atr", 0))
+        # --- 2. ESTRATÉGIA RSI MOMENTUM (LONG) ---
+        # Apenas dispara se o cenário macro (Altseason) for favorável
+        # VETO: Se IA detectou tendência de QUEDA (< 35% confiança)
+        if altseason_ativa and conf >= 35:
+            for tf, perfil in PERFIS_RSI_MOMENTUM.items():
+                df = obter_klines(symbol, tf)
+                time.sleep(0.05)
+                s_rsi = detectar_rsi_momentum(df, tf) if df is not None else None
                 
-                # Texto de destaque para o timeframe
-                tf_label = f"「{tf.upper()}」"
-                
-                msg = (
-                    f"💎 *{tf_label} LARANJA MECÂNICA*\n"
-                    f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🔸 *Ativo:* `{symbol}`\n"
-                    f"🕒 *Timeframe:* `{tf.upper()}`\n"
-                    f"📉 *Entrada (Short):* `{preco:.4f}`\n"
-                    f"🎯 *Alvo (TP):* `{tp:.4f}` ({round((perfil['tp']-1)*100, 1)}%)\n"
-                    f"🛑 *Stop (SL):* `{sl:.4f}` (+{round((perfil['sl']-1)*100, 1)}%)\n"
-                    f"⏱️ *Estimativa:* `{estimativa} velas` (~{estimativa}{tf[-1]})\n"
-                    f"⚖️ *Alavancagem:* 5x\n"
-                    f"📊 *Score:* {s_mecanica['score']}/10\n"
-                    f"━━━━━━━━━━━━━━━━━━━━━━"
-                )
-                enviar_telegram(msg)
+                if s_rsi:
+                    print(f"  🚀 {symbol:<10} [{tf}] → RSI MOMENTUM!")
+                    preco = s_rsi['preco']
+                    tp, sl = preco * perfil["tp"], preco * perfil["sl"]
+                    
+                    msg = (
+                        f"🚀 *{tf.upper()} RSI MOMENTUM*\n"
+                        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"🔹 *Ativo:* `{symbol}`\n"
+                        f"🕒 *Timeframe:* `{tf.upper()}`\n"
+                        f"📈 *Entrada (Long):* `{preco:.4f}`\n"
+                        f"🎯 *Alvo (TP):* `{tp:.4f}` (+{round((perfil['tp']-1)*100, 1)}%)\n"
+                        f"🛑 *Stop (SL):* `{sl:.4f}` ({round((perfil['sl']-1)*100, 1)}%)\n"
+                        f"📊 *RSI:* {s_rsi['rsi']} (Anterior: {s_rsi['rsi_anterior']})\n"
+                        f"📊 *Score:* {s_rsi['score']}/10\n"
+                        f"📊 *IA Confiança:* {conf:.1f}%\n"
+                        f"━━━━━━━━━━━━━━━━━━━━━━"
+                    )
+                    enviar_telegram(msg)
 
 def iniciar_loop():
     global SIMBOLOS_BASE
