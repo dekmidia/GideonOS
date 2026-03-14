@@ -190,7 +190,12 @@
             </ul>
 
             <div class="strategy-box">
-                <strong>O Veredito:</strong> Se a Confiança for superior a 75%, o sistema indica uma entrada de alta probabilidade. Menos que 50% é considerado ruído.
+                <strong>O Veredito e Pesos:</strong> O sistema agora prioriza o "agora". Tempos menores (1m, 5m, 15m) têm peso maior na decisão para detectar reversões rápidas. Se a Confiança for > 75%, o sinal é de elite.
+            </div>
+
+            <div class="h-item" style="border-left: 4px solid var(--neon-orange); background: rgba(255,140,0,0.05);">
+                <h3>⚠️ Radar de Divergência</h3>
+                <p>O filtro de segurança definitivo. Se a macrotendência (4h) diz ALTA, mas o micro (1m a 15m) está derretendo em BAIXA, o sistema trava o veredito e exibe um alerta de divergência. <strong>Não opere contra o microtempo nessas situações.</strong></p>
             </div>
         </section>
 

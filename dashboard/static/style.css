@@ -87,7 +87,7 @@ main {
 .dashboard-grid {
     display: grid;
     grid-template-columns: 1fr 1.8fr;
-    gap: 24px;
+    gap: 40px; /* Aumentado de 24px para 40px */
 }
 
 /* Custom Scrollbar */
@@ -100,7 +100,8 @@ h2 {
     text-transform: uppercase;
     letter-spacing: 2px;
     color: rgba(255, 255, 255, 0.4);
-    margin-bottom: 16px;
+    margin-top: 16px; /* Adicionado respiro superior */
+    margin-bottom: 28px; /* Aumentado de 16px para 28px */
 }
 
 .section-header {
@@ -135,7 +136,7 @@ h2 {
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 16px;
-    padding: 20px;
+    padding: 30px; /* Aumentado de 20px para 30px */
     transition: all 0.3s ease;
     animation: fadeIn 0.5s ease backwards;
 }
@@ -149,7 +150,7 @@ h2 {
 .card-header {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 20px;
+    margin-bottom: 24px; /* Aumentado de 20px para 24px */
 }
 
 .symbol-name { font-weight: 800; font-size: 1.2rem; }
@@ -392,9 +393,9 @@ footer {
 .tabs-nav {
     display: flex;
     gap: 10px;
-    margin-bottom: 24px;
+    margin-bottom: 32px; /* Aumentado de 24px para 32px */
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    padding-bottom: 10px;
+    padding-bottom: 15px; /* Aumentado de 10px para 15px */
 }
 
 .tab-link {
@@ -433,7 +434,8 @@ footer {
 /* HISTORY TABLE SPECIFICS */
 .history-section {
     width: 100%;
-    padding: 24px;
+    padding: 24px 30px; /* Adicionado padding lateral */
+    border-radius: 16px;
 }
 
 .history-section h2 {
@@ -670,12 +672,18 @@ footer {
 }
 .vol-exaustao { background: rgba(239, 68, 68, 0.2); color: #f87171; }
 .vol-forte { background: rgba(16, 185, 129, 0.2); color: #4ade80; }
+
+.portfolio-section, .scanner-section {
+    padding: 24px 30px;
+    border-radius: 16px;
+    height: 100%;
+}
 /* --- PERFORMANCE BAR --- */
 .performance-bar {
     display: flex;
     justify-content: space-around;
-    padding: 15px;
-    margin-bottom: 24px;
+    padding: 20px; /* Aumentado de 15px para 20px */
+    margin-bottom: 32px; /* Aumentado de 24px para 32px */
     border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.05);
     animation: fadeIn 0.6s ease backwards;
@@ -734,6 +742,22 @@ footer {
 .toast.show { transform: translateX(0); }
 
 .toast-icon { font-size: 1.2rem; }
+/* --- EFEITO CLIQUE PARA COPIAR --- */
+.copyable {
+    cursor: pointer;
+    transition: 0.2s;
+    position: relative;
+}
+
+.copyable:hover {
+    color: var(--neon-orange) !important;
+    text-shadow: 0 0 10px rgba(255, 140, 0, 0.3);
+}
+
+.copyable:active {
+    transform: scale(0.95);
+    opacity: 0.7;
+}
 
 /* --- GOLD SIGNALS --- */
 .gold-signal {
@@ -751,6 +775,7 @@ footer {
     transform: translateY(-50%);
     font-size: 1rem;
     opacity: 0.6;
+    pointer-events: none; /* Permite clicar no botão por baixo */
 }
 
 /* --- REFINAMENTOS DE CARDS --- */

@@ -164,10 +164,16 @@ def get_multi_timeframe_analysis(symbol):
             except Exception as e:
                 analysis[interval] = {"error": str(e)}
     
-    # Motor de Veredito
+    # Motor de Veredito Reequilibrado
     verdict = "INDETERMINADO"
-    score = 0
-    weights = {'4h': 3, '1h': 2, '30m': 1.5, '15m': 1, '5m': 0.5, '1m': 0.2}
+    weights = {
+        '4h': 2.0,   # Reduzido de 3.0 para evitar vício
+        '1h': 1.8,   # Reduzido de 2.0
+        '30m': 1.5,
+        '15m': 1.5,  # Aumentado de 1.0 (voz do micro)
+        '5m': 1.2,   # Aumentado de 0.5 (voz do micro)
+        '1m': 0.8    # Aumentado de 0.2 (voz do micro)
+    }
     
     total_weight = 0
     bull_score = 0
@@ -180,6 +186,16 @@ def get_multi_timeframe_analysis(symbol):
             
     confidence = (bull_score / (total_weight or 1)) * 100
     
+    # Lógica de Veto (Voz do Micro)
+    micro_plunge = analysis.get('15m', {}).get('trend') == "BAIXA" and \
+                   analysis.get('5m', {}).get('trend') == "BAIXA" and \
+                   analysis.get('1m', {}).get('trend') == "BAIXA"
+                   
+    is_divergent = False
+    if confidence > 50 and micro_plunge:
+        confidence = 50 # Força neutralidade se micro está derretendo
+        is_divergent = True
+
     if confidence > 75: verdict = "🚀 ALTA FORTE"
     elif confidence > 60: verdict = "📈 ALTA PROVÁVEL"
     elif confidence < 25: verdict = "📉 QUEDA FORTE"
@@ -200,6 +216,7 @@ def get_multi_timeframe_analysis(symbol):
             confidence *= 0.7
             
     reason = f"BTC está em {btc_status}. Macrotendência (4h): {macro_trend}. "
+    if is_divergent: reason += "⚠️ DIVERGÊNCIA: Macro alta, mas Micro derretendo. Risco de reversão! "
     if vol_5m == "EXAUSTÃO": reason += "Cuidado: Exaustão de volume detectada no micro. "
     
     if micro_rsi > 70: reason += "Sobrecomprado (RSI > 70)."

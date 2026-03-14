@@ -30,6 +30,18 @@ function showToast(message, type = 'info') {
     }, 4000);
 }
 
+// --- FUNÇÃO CLIQUE PARA COPIAR ---
+async function copyText(text, label) {
+    try {
+        await navigator.clipboard.writeText(text);
+        showToast(`${label} copiado: ${text}`, 'success');
+        console.log(`[UI] ${label} copiado para clipboard: ${text}`);
+    } catch (err) {
+        console.error('Falha ao copiar:', err);
+        showToast('Erro ao copiar valor', 'error');
+    }
+}
+
 function getExplanation(status, side) {
     const isShort = side.toLowerCase() === 'short';
     
@@ -455,15 +467,17 @@ async function updateScanner() {
 
             row.innerHTML = `
                 <td onclick="openChart('${sig.symbol}')" style="cursor: pointer;"><strong>${sig.symbol}</strong><br><small style="color:var(--text-dim);">${sig.bb_upper}</small></td>
-                <td>${sig.price}</td>
-                <td style="color: var(--neon-blue);">${sig.tp}</td>
-                <td style="color: var(--loss-red);">${sig.sl}</td>
+                <td class="copyable" onclick="event.stopPropagation(); copyText('${sig.price}', 'Preço')">${sig.price}</td>
+                <td class="copyable" style="color: var(--neon-blue);" onclick="event.stopPropagation(); copyText('${sig.tp}', 'TP')">${sig.tp}</td>
+                <td class="copyable" style="color: var(--loss-red);" onclick="event.stopPropagation(); copyText('${sig.sl}', 'SL')">${sig.sl}</td>
                 <td style="text-align:center;">${sig.score}/10</td>
                 <td><span class="status-tag ${statusClass}">${sig.status}</span></td>
                 <td>
                     <div style="display: flex; gap: 4px;">
                         <button class="btn-action btn-entry pulse-success btn-entry-action">ENTRAR</button>
-                        <button class="btn-action pulse-blue" style="background: var(--neon-blue); padding: 6px 8px;" onclick="openAnalysis('${sig.symbol}')">⚡</button>
+                        <button class="btn-action pulse-blue btn-raiox-action" 
+                                style="background: var(--neon-blue); padding: 8px 12px; min-width: 40px;" 
+                                onclick="event.stopPropagation(); console.log('[UI] Abrindo Raio-X para ${sig.symbol}'); openAnalysis('${sig.symbol}')">⚡</button>
                     </div>
                 </td>
             `;
