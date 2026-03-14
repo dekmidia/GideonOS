@@ -116,25 +116,40 @@ def api_monitor():
                 
                 rsi_4h = calc_rsi(df_4h)
                 curr_price, kumo_top_4h, kumo_bottom_4h = calc_ichimoku(df_4h)
-                pnl = ((entry_price / curr_price) - 1) * 100 * 8
+                
+                is_short = side.lower() == 'short'
+                
+                # Cálculo de PnL Direcional (8x Alavancagem padrão do usuário)
+                if is_short:
+                    pnl = ((entry_price / curr_price) - 1) * 100 * 8
+                else:
+                    pnl = ((curr_price / entry_price) - 1) * 100 * 8
                 
                 # --- LÓGICA DE DECISÃO AVANÇADA (MARCELO VEGA V3) ---
                 status = 'TUDO CERTO: SEGURAR'
                 
-                # 1. Se o preço cruzar a nuvem de 4H para cima (Reversão de Tendência ❌)
-                if side.lower() == 'short' and curr_price > kumo_top_4h:
+                # 1. Reversão de Tendência (Cruzou a Nuvem)
+                if is_short and curr_price > kumo_top_4h:
+                    status = 'PERIGOSO: SAIR AGORA'
+                elif not is_short and curr_price < kumo_bottom_4h:
                     status = 'PERIGOSO: SAIR AGORA'
                 
-                # 2. Se estiver em lucro e RSI estiver baixo (Hora de realizar ✅)
-                elif rsi_4h < 45:
+                # 2. Realização de Lucro (Exaustão do movimento a favor)
+                elif is_short and rsi_4h < 45:
+                    status = 'LUCRO NO BOLSO?'
+                elif not is_short and rsi_4h > 65:
                     status = 'LUCRO NO BOLSO?'
                 
-                # 3. Se estiver no prejuízo mas RSI 4H estiver extremo (Oportunidade de volta 🔄)
-                elif rsi_4h > 75 and pnl < 0:
+                # 3. Exaustão Contra a Posição (Momento de aguardar correção)
+                elif is_short and rsi_4h > 75 and pnl < 0:
+                    status = 'CALMA: VAI VOLTAR'
+                elif not is_short and rsi_4h < 30 and pnl < 0:
                     status = 'CALMA: VAI VOLTAR'
                 
-                # 4. Caso padrão de Ponto de Equilíbrio
-                if (side.lower() == 'short' and curr_price <= entry_price):
+                # 4. Ponto de Equilíbrio (Break-even)
+                if is_short and curr_price <= entry_price:
+                    status = 'PROTEÇÃO: NO ZERO'
+                elif not is_short and curr_price >= entry_price:
                     status = 'PROTEÇÃO: NO ZERO'
 
                 positions.append({

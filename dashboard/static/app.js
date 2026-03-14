@@ -1,12 +1,28 @@
 const API_URL = 'http://127.0.0.1:5000/api';
 
-const STATUS_EXPLAIN = {
-    'TUDO CERTO: SEGURAR': 'Tudo sob controle. O plano continua o mesmo: manter a posição e esperar o preço baixar.',
-    'PERIGOSO: SAIR AGORA': 'Atenção! O mercado virou contra nós agora. O risco aumentou muito e pode ser melhor sair da posição.',
-    'LUCRO NO BOLSO?': 'Hora de colher! O preço já caiu bastante. Pode ser uma boa hora para garantir o seu lucro agora.',
-    'CALMA: VAI VOLTAR': 'Fique tranquilo. O preço subiu demais e está cansado. Ele deve voltar a cair em breve, então vale a pena esperar.',
-    'PROTEÇÃO: NO ZERO': 'Ponto de Segurança! O preço voltou para onde você entrou. Proteja-se para não sair no prejuízo.'
-};
+function getExplanation(status, side) {
+    const isShort = side.toLowerCase() === 'short';
+    
+    const mapping = {
+        'TUDO CERTO: SEGURAR': isShort 
+            ? 'Tudo sob controle. O plano continua o mesmo: manter a posição e esperar o preço baixar.' 
+            : 'Tudo sob controle. O plano continua o mesmo: manter a posição e esperar o preço subir.',
+        
+        'PERIGOSO: SAIR AGORA': 'Atenção! O mercado virou contra nós agora. O risco aumentou muito e pode ser melhor sair da posição.',
+        
+        'LUCRO NO BOLSO?': isShort
+            ? 'Hora de colher! O preço já caiu bastante. Pode ser uma boa hora para garantir o seu lucro agora.'
+            : 'Hora de colher! O preço já subiu bastante. Pode ser uma boa hora para garantir o seu lucro agora.',
+        
+        'CALMA: VAI VOLTAR': isShort
+            ? 'Fique tranquilo. O preço subiu demais e está cansado. Ele deve voltar a cair em breve.'
+            : 'Fique tranquilo. O preço caiu demais e está cansado. Ele deve voltar a subir em breve.',
+        
+        'PROTEÇÃO: NO ZERO': 'Ponto de Segurança! O preço voltou para onde você entrou. Proteja-se para não sair no prejuízo.'
+    };
+    
+    return mapping[status] || 'Análise tática em processamento...';
+}
 
 // --- LOGICA TRADING VIEW ---
 function openChart(symbol) {
@@ -67,7 +83,7 @@ async function updatePortfolio() {
             
             const isProfit = pos.pnl >= 0;
             const pnlClass = isProfit ? 'green' : 'red';
-            const explanation = STATUS_EXPLAIN[pos.status] || 'Análise tática em processamento...';
+            const explanation = getExplanation(pos.status, pos.side);
             
             card.innerHTML = `
                 <div class="card-header">
