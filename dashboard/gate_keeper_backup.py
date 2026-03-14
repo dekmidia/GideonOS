@@ -261,19 +261,29 @@ def manual():
 def plano():
     return render_template('plano.html')
 
-import json
-
-# Carrega moedas comuns do arquivo gerado pelo mapeador
-moedas_json = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'moedas_comuns.json')
-try:
-    with open(moedas_json, 'r') as f:
-        LISTA_PRIORIDADE = json.load(f)
-except:
-    LISTA_PRIORIDADE = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT']
-
-# MODO SNOWBALL: Sincronizado com pump_detector.py
-SNOWBALL_MODE = True
-CONFIDENCA_MINIMA = 75 if SNOWBALL_MODE else 60
+LISTA_PRIORIDADE = [
+    '1INCHUSDT', 'AAVEUSDT', 'ACEUSDT', 'ADAUSDT', 'AEVOUSDT',
+    'AGLDUSDT', 'ALGOUSDT', 'ALTUSDT', 'ANKRUSDT', 'APEUSDT',
+    'ARPAUSDT', 'ATOMUSDT', 'AUCTIONUSDT', 'AVAXUSDT', 'AXSUSDT',
+    'BANANAUSDT', 'BATUSDT', 'BLURUSDT', 'BNBUSDT', 'BOMEUSDT',
+    'BTCUSDT', 'CAKEUSDT', 'CATIUSDT', 'CELOUSDT', 'CHRUSDT',
+    'CHZUSDT', 'CKBUSDT', 'DOGEUSDT', 'DOTUSDT', 'DUSKUSDT',
+    'DYDXUSDT', 'EGLDUSDT', 'EIGENUSDT', 'ENJUSDT', 'ENSUSDT',
+    'ETHUSDT', 'FILUSDT', 'FLOKIUSDT', 'FLOWUSDT', 'FLUXUSDT',
+    'GALAUSDT', 'GLMUSDT', 'GMTUSDT', 'GMXUSDT', 'GRTUSDT',
+    'HBARUSDT', 'HIGHUSDT', 'HMSTRUSDT', 'HOOKUSDT', 'ILVUSDT',
+    'IMXUSDT', 'INJUSDT', 'IOSTUSDT', 'IOTAUSDT', 'IOUSDT',
+    'JASMYUSDT', 'JTOUSDT', 'KNCUSDT', 'KSMUSDT', 'LDOUSDT',
+    'LINKUSDT', 'LISTAUSDT', 'LTCUSDT', 'LUNAUSDT', 'MANAUSDT',
+    'MANTAUSDT', 'METISUSDT', 'MINAUSDT', 'MOVRUSDT', 'NEARUSDT',
+    'NEOUSDT', 'NFPUSDT', 'ONTUSDT', 'OPUSDT', 'ORDIUSDT',
+    'OXTUSDT', 'PENDLEUSDT', 'PEOPLEUSDT', 'PIXELUSDT', 'POLUSDT',
+    'POLYXUSDT', 'PYTHUSDT', 'QNTUSDT', 'RAREUSDT', 'RENDERUSDT',
+    'RLCUSDT', 'RUNEUSDT', 'SANDUSDT', 'SEIUSDT', 'SOLUSDT',
+    'STORJUSDT', 'STRKUSDT', 'SUIUSDT', 'SUNUSDT', 'SUSHIUSDT',
+    'THETAUSDT', 'TIAUSDT', 'TLMUSDT', 'TRXUSDT', 'UNIUSDT',
+    'VETUSDT', 'WIFUSDT', 'XRPUSDT', 'YFIUSDT', 'YGGUSDT',
+]
 
 def detectar_laranja_mecanica(df, interval):
     if df is None or len(df) < 30: return None
@@ -333,6 +343,7 @@ def api_scanner():
         
         # 2. Análise de Raio-X IA para Veto
         analysis = get_multi_timeframe_analysis(symbol)
+        verdict = analysis.get('verdict', '')
         confidence = analysis.get('confidence', 0)
         
         # 3. Tentar Laranja Mecânica (Short)
@@ -341,9 +352,9 @@ def api_scanner():
             if df is None: continue
             laranja = detectar_laranja_mecanica(df, tf)
             if laranja:
-                # VETO DE SHORT: Se a IA detectou tendência de ALTA
-                if confidence > (100 - CONFIDENCA_MINIMA/1.5): # Ajuste proporcional
-                    print(f"  🚫 VETO (SHORT): {symbol} ignorado - IA detectou Alta.")
+                # VETO DE SHORT: Se a IA diz que a tendência é de Alta Forte (> 65% confiança)
+                if verdict.startswith("🚀") or confidence > 65:
+                    print(f"  🚫 VETO (SHORT): {symbol} ignorado - IA detectou Alta Forte.")
                     return []
 
                 rsi = calc_rsi(df)
@@ -361,8 +372,9 @@ def api_scanner():
         
         # 4. Tentar RSI Momentum (Long) se Altseason Ativa
         if altseason_ativa:
-            # VETO DE LONG: Modo Snowball exige confiança alta
-            if confidence < CONFIDENCA_MINIMA:
+            # VETO DE LONG: Se a IA diz que a tendência é de Queda
+            if verdict.startswith("📉") or confidence < 35:
+                print(f"  🚫 VETO (LONG): {symbol} ignorado - IA detectou Queda ou Incerteza.")
                 return []
 
             for tf in ['1m', '5m', '15m']:

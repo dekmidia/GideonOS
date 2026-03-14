@@ -1,0 +1,58 @@
+Analise Manha de Hoje (14/03) das 00:00 as 13:00 Brasilia
+Macro: Manha foi BTC DOMINANTE (Dominancia subindo)
+
+Scan em SOLUSDT:
+  [BLOQUEADO] 00:50: Sinal RSI (38.1) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 00:55: Sinal RSI (40.9) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 01:15: Sinal RSI (49.9) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 02:40: Sinal RSI (46.0) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 02:45: Sinal RSI (49.9) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 05:05: Sinal RSI (44.3) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 05:10: Sinal RSI (45.4) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 05:20: Sinal RSI (47.0) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 05:35: Sinal RSI (38.2) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 05:50: Sinal RSI (39.0) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 05:55: Sinal RSI (39.7) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 06:05: Sinal RSI (40.6) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 06:40: Sinal RSI (18.0) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 06:45: Sinal RSI (28.9) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 06:55: Sinal RSI (28.8) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 07:05: Sinal RSI (34.8) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 07:25: Sinal RSI (39.6) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 07:45: Sinal RSI (37.3) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 07:55: Sinal RSI (40.5) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 08:05: Sinal RSI (43.4) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 08:10: Sinal RSI (49.8) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 08:20: Sinal RSI (48.8) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 08:50: Sinal RSI (37.7) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 09:00: Sinal RSI (45.1) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 09:10: Sinal RSI (45.9) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 09:35: Sinal RSI (38.8) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 09:50: Sinal RSI (31.3) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 09:55: Sinal RSI (33.2) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 10:00: Sinal RSI (34.5) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 10:10: Sinal RSI (35.9) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 10:45: Sinal RSI (31.2) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 10:50: Sinal RSI (33.7) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 11:00: Sinal RSI (45.1) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 11:20: Sinal RSI (47.6) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 11:35: Sinal RSI (48.5) ignorado por BTC Dominante. Protecao Ativa.
+
+Scan em THETAUSDT:
+  [BLOQUEADO] 06:45: Sinal RSI (45.6) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 11:00: Sinal RSI (48.4) ignorado por BTC Dominante. Protecao Ativa.
+
+Scan em NFPUSDT:
+  [BLOQUEADO] 01:00: Sinal RSI (34.3) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 01:15: Sinal RSI (37.2) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 01:25: Sinal RSI (36.9) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 01:35: Sinal RSI (36.7) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 01:40: Sinal RSI (47.5) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 02:35: Sinal RSI (40.2) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 04:55: Sinal RSI (36.2) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 05:40: Sinal RSI (35.1) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 05:50: Sinal RSI (39.1) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 06:10: Sinal RSI (37.5) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 06:40: Sinal RSI (31.9) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 06:45: Sinal RSI (36.4) ignorado por BTC Dominante. Protecao Ativa.
+  [BLOQUEADO] 11:40: Sinal RSI (48.9) ignorado por BTC Dominante. Protecao Ativa.

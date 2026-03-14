@@ -21,23 +21,26 @@ load_dotenv()
 # ─────────────────────────────────────────────────
 # CONFIGURAÇÕES TÉCNICAS
 # ─────────────────────────────────────────────────
-import json
-
-# Carrega moedas comuns Binance+BingX se o arquivo existir
-try:
-    with open('moedas_comuns.json', 'r') as f:
-        LISTA_PRIORIDADE = json.load(f)
-except:
-    LISTA_PRIORIDADE = [
-        'BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'ADAUSDT', 'XRPUSDT', 'DOGEUSDT', 'DOTUSDT', 'LINKUSDT'
-    ]
-
-# MODO SNOWBALL: Foco em assertividade máxima para banca pequena ($5)
-SNOWBALL_MODE = True 
-CONFIDENCA_MINIMA = 75 if SNOWBALL_MODE else 60
+LISTA_PRIORIDADE = [
+    'BTCUSDT', '1INCHUSDT', 'AAVEUSDT', 'ACEUSDT', 'ADAUSDT', 'AEVOUSDT', 'AGLDUSDT', 'ALGOUSDT', 'ALTUSDT', 
+    'ANKRUSDT', 'APEUSDT', 'ARPAUSDT', 'ATAUSDT', 'ATOMUSDT', 'AUCTIONUSDT', 'AVAXUSDT', 'AXSUSDT', 
+    'BANANAUSDT', 'BATUSDT', 'BLURUSDT', 'BNBUSDT', 'BNTUSDT', 'BOMEUSDT', 'CAKEUSDT', 'CATIUSDT', 
+    'CELOUSDT', 'CHESSUSDT', 'CHRUSDT', 'CHZUSDT', 'CKBUSDT', 'DARUSDT', 'DOGEUSDT', 'DOGSUSDT', 
+    'DOTUSDT', 'DUSKUSDT', 'DYDXUSDT', 'EGLDUSDT', 'EIGENUSDT', 'ENJUSDT', 'ENSUSDT', 'ETHUSDT', 
+    'FILUSDT', 'FLOKIUSDT', 'FLOWUSDT', 'FLUXUSDT', 'GALAUSDT', 'GHSTUSDT', 'GLMRUSDT', 'GLMUSDT', 
+    'GMTUSDT', 'GMXUSDT', 'GRTUSDT', 'GTCUSDT', 'GUSDT', 'HBARUSDT', 'HIGHUSDT', 'HMSTRUSDT', 
+    'HOOKUSDT', 'ILVUSDT', 'IMXUSDT', 'INJUSDT', 'IOSTUSDT', 'IOTAUSDT', 'IOUSDT', 'JASMYUSDT', 
+    'JOEUSDT', 'JTOUSDT', 'KNCUSDT', 'KSMUSDT', 'LDOUSDT', 'LINKUSDT', 'LISTAUSDT', 'LTCUSDT', 
+    'LUNAUSDT', 'MANAUSDT', 'MANTAUSDT', 'METISUSDT', 'MINAUSDT', 'MOVRUSDT', 'NEARUSDT', 'NEOUSDT', 
+    'NFPUSDT', 'ONTUSDT', 'OPUSDT', 'ORDIUSDT', 'OXTUSDT', 'PENDLEUSDT', 'PEOPLEUSDT', 'PERPUSDT', 
+    'PIXELUSDT', 'POLUSDT', 'POLYXUSDT', 'POWRUSDT', 'PYTHUSDT', 'QNTUSDT', 'QUICKUSDT', 'RAREUSDT', 
+    'RENDERUSDT', 'RIFUSDT', 'RLCUSDT', 'RUNEUSDT', 'SANDUSDT', 'SCRUSDT', 'SEIUSDT', 'SOLUSDT', 
+    'STORJUSDT', 'STRKUSDT', 'SUIUSDT', 'SUNUSDT', 'SUSHIUSDT', 'SYSUSDT', 'THETAUSDT', 'TIAUSDT', 
+    'TLMUSDT', 'TRXUSDT', 'UNIUSDT', 'VETUSDT', 'WAXPUSDT', 'WIFUSDT', 'XRPUSDT', 'YFIUSDT', 'YGGUSDT'
+]
 
 SIMBOLOS_BASE = [] 
-SIMBOLOS_POR_CICLO = 20 # Aumentado para processar os 411 mais rápido
+SIMBOLOS_POR_CICLO = 10 
 
 # CONFIGURAÇÃO TELEGRAM
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "") 
@@ -362,29 +365,29 @@ def scan_mercado():
 
         # --- 2. ESTRATÉGIA RSI MOMENTUM (LONG) ---
         # Apenas dispara se o cenário macro (Altseason) for favorável
-        # VETO: Se IA detectou tendência de QUEDA ou confiança baixa no Snowball
-        if altseason_ativa and conf >= CONFIDENCA_MINIMA:
-            tag_snowball = " ❄️ [SNOWBALL]" if SNOWBALL_MODE else ""
+        # VETO: Se IA detectou tendência de QUEDA (< 35% confiança)
+        if altseason_ativa and conf >= 35:
             for tf, perfil in PERFIS_RSI_MOMENTUM.items():
                 df = obter_klines(symbol, tf)
                 time.sleep(0.05)
                 s_rsi = detectar_rsi_momentum(df, tf) if df is not None else None
                 
                 if s_rsi:
-                    print(f"  🚀 {symbol:<10} [{tf}] → RSI MOMENTUM! (Conf: {conf:.1f}%)")
+                    print(f"  🚀 {symbol:<10} [{tf}] → RSI MOMENTUM!")
                     preco = s_rsi['preco']
                     tp, sl = preco * perfil["tp"], preco * perfil["sl"]
                     
                     msg = (
-                        f"🚀 *{tf.upper()} RSI MOMENTUM*{tag_snowball}\n"
+                        f"🚀 *{tf.upper()} RSI MOMENTUM*\n"
                         f"━━━━━━━━━━━━━━━━━━━━━━\n"
                         f"🔹 *Ativo:* `{symbol}`\n"
                         f"🕒 *Timeframe:* `{tf.upper()}`\n"
                         f"📈 *Entrada (Long):* `{preco:.4f}`\n"
                         f"🎯 *Alvo (TP):* `{tp:.4f}` (+{round((perfil['tp']-1)*100, 1)}%)\n"
                         f"🛑 *Stop (SL):* `{sl:.4f}` ({round((perfil['sl']-1)*100, 1)}%)\n"
+                        f"📊 *RSI:* {s_rsi['rsi']} (Anterior: {s_rsi['rsi_anterior']})\n"
+                        f"📊 *Score:* {s_rsi['score']}/10\n"
                         f"📊 *IA Confiança:* {conf:.1f}%\n"
-                        f"📊 *Status:* {status_macro}\n"
                         f"━━━━━━━━━━━━━━━━━━━━━━"
                     )
                     enviar_telegram(msg)

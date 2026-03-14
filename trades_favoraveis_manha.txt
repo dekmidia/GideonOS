@@ -1,0 +1,30 @@
+Relatorio de Trades Favoraveis (Sinal + Consenso IA) - 14/03
+
+Procurando em SOLUSDT:
+
+Procurando em BTCUSDT:
+  [APROVADO] 00:45 (15m): Long RSI Momentum no BTC (Operacao Segura na Dominancia). [OK]
+  [APROVADO] 01:00 (15m): Long RSI Momentum no BTC (Operacao Segura na Dominancia). [OK]
+  [APROVADO] 01:15 (15m): Long RSI Momentum no BTC (Operacao Segura na Dominancia). [OK]
+  [APROVADO] 01:30 (15m): Long RSI Momentum no BTC (Operacao Segura na Dominancia). [OK]
+  [APROVADO] 01:45 (15m): Long RSI Momentum no BTC (Operacao Segura na Dominancia). [OK]
+  [APROVADO] 02:45 (15m): Long RSI Momentum no BTC (Operacao Segura na Dominancia). [OK]
+  [APROVADO] 06:45 (15m): Long RSI Momentum no BTC (Operacao Segura na Dominancia). [OK]
+  [APROVADO] 07:00 (15m): Long RSI Momentum no BTC (Operacao Segura na Dominancia). [OK]
+  [APROVADO] 07:45 (15m): Long RSI Momentum no BTC (Operacao Segura na Dominancia). [OK]
+  [APROVADO] 08:00 (15m): Long RSI Momentum no BTC (Operacao Segura na Dominancia). [OK]
+  [APROVADO] 08:45 (15m): Long RSI Momentum no BTC (Operacao Segura na Dominancia). [OK]
+  [APROVADO] 09:00 (15m): Long RSI Momentum no BTC (Operacao Segura na Dominancia). [OK]
+  [APROVADO] 09:15 (15m): Long RSI Momentum no BTC (Operacao Segura na Dominancia). [OK]
+  [APROVADO] 10:00 (15m): Long RSI Momentum no BTC (Operacao Segura na Dominancia). [OK]
+  [APROVADO] 10:30 (15m): Long RSI Momentum no BTC (Operacao Segura na Dominancia). [OK]
+  [APROVADO] 10:45 (15m): Long RSI Momentum no BTC (Operacao Segura na Dominancia). [OK]
+  [APROVADO] 11:00 (15m): Long RSI Momentum no BTC (Operacao Segura na Dominancia). [OK]
+
+Procurando em ETHUSDT:
+
+Procurando em THETAUSDT:
+
+Procurando em NFPUSDT:
+
+Procurando em LINKUSDT:
