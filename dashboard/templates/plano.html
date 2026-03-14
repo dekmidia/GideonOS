@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>O Plano Sniper | Gideon Sentinel</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --neon-orange: #ff8c00;
+            --neon-blue: #00d2ff;
+            --win-green: #10b981;
+            --loss-red: #ef4444;
+            --glass-bg: rgba(30, 41, 59, 0.7);
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-dark);
+            color: #f8fafc;
+            line-height: 1.6;
+            padding: 40px 20px;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+
+        .logo {
+            font-weight: 800;
+            font-size: 2.5rem;
+            letter-spacing: -1px;
+            margin-bottom: 10px;
+        }
+
+        .neon-text { color: var(--neon-orange); text-shadow: 0 0 20px rgba(255, 140, 0, 0.5); }
+
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 40px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .glass-card::after {
+            content: '🎯';
+            position: absolute;
+            right: -20px;
+            top: -20px;
+            font-size: 5rem;
+            opacity: 0.1;
+            transform: rotate(20deg);
+        }
+
+        h2 {
+            font-size: 1.8rem;
+            color: var(--neon-orange);
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        h2::before {
+            content: '';
+            width: 4px;
+            height: 24px;
+            background: var(--neon-orange);
+            border-radius: 20px;
+        }
+
+        h3 {
+            font-size: 1.4rem;
+            margin: 30px 0 15px;
+            color: var(--neon-blue);
+            border-bottom: 1px solid rgba(0, 210, 255, 0.2);
+            padding-bottom: 10px;
+        }
+
+        p { margin-bottom: 15px; color: #94a3b8; }
+
+        .phase-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            background: var(--neon-blue);
+            color: white;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 800;
+            margin-bottom: 15px;
+        }
+
+        .target-box {
+            background: rgba(16, 185, 129, 0.05);
+            border: 1px dashed var(--win-green);
+            padding: 15px;
+            border-radius: 12px;
+            margin: 15px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        ul { list-style: none; margin-bottom: 20px; }
+        li { margin-bottom: 12px; padding-left: 25px; position: relative; color: #cbd5e1; }
+        li::before {
+            content: '✔️';
+            position: absolute;
+            left: 0;
+            font-size: 0.8rem;
+        }
+
+        .btn-action {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 12px 25px;
+            background: var(--neon-orange);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: bold;
+            transition: 0.3s;
+            text-align: center;
+        }
+
+        .btn-action:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 30px rgba(255, 140, 0, 0.4);
+        }
+
+        .warning-box {
+            background: rgba(239, 68, 68, 0.1);
+            border-left: 4px solid var(--loss-red);
+            padding: 20px;
+            border-radius: 0 12px 12px 0;
+            margin: 30px 0;
+        }
+
+        footer {
+            text-align: center;
+            color: #64748b;
+            font-size: 0.9rem;
+            margin-top: 60px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .btn-group { flex-direction: column; }
+            .glass-card { padding: 25px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">O <span class="neon-text">PLANO</span> SNIPER</div>
+            <p>Estratégia de Crescimento: $5 para $100</p>
+            <div class="btn-group">
+                <a href="/" class="btn-action" style="background: rgba(255,255,255,0.1);">VOLTAR DASHBOARD</a>
+                <a href="/manual" class="btn-action" style="background: var(--neon-blue);">VER MANUAL 📖</a>
+            </div>
+        </header>
+
+        <section class="glass-card">
+            <h2>Lógica de Guerra</h2>
+            <p>Com uma banca de $5, seu erro permitido é zero. Você não está jogando, está operando como um sniper do mercado.</p>
+            
+            <div class="warning-box">
+                <strong>REGRA DE OURO:</strong> Nunca entre se o BTC estiver CONTRA. A maré tem que estar a seu favor ou parada. Se o BTC teimar, você espera.
+            </div>
+
+            <div class="phase">
+                <span class="phase-badge">FASE 1</span>
+                <h3>A Travessia ($5 ➡️ $10)</h3>
+                <p>O objetivo aqui é dobrar o capital com segurança máxima.</p>
+                <ul>
+                    <li>Somente sinais com <strong>Score > 8.5</strong> no Scanner.</li>
+                    <li>Confiança da IA no Raio-X acima de <strong>80%</strong>.</li>
+                    <li>Volume deve estar marcado como <strong>FORTE</strong> em 15m.</li>
+                    <li>Alavancagem fixa em <strong>8x</strong>.</li>
+                </ul>
+                <div class="target-box">
+                    <span>Meta de Ganho p/ Operação:</span>
+                    <strong style="color: var(--win-green);">+25% Real</strong>
+                </div>
+            </div>
+
+            <div class="phase">
+                <span class="phase-badge">FASE 2</span>
+                <h3>O Escalonamento ($10 ➡️ $50)</h3>
+                <p>Nesta fase começamos a construir o montante principal.</p>
+                <ul>
+                    <li>Divida seus $10 em duas margens de $5.</li>
+                    <li>Ignore qualquer sinal com tag de <strong>EXAUSTÃO</strong>.</li>
+                    <li>Paciência é sua maior arma: melhor zero lucro do que um stop de $5.</li>
+                </ul>
+                <div class="target-box">
+                    <span>Reserva de Segurança:</span>
+                    <strong style="color: var(--neon-blue);">$5.00 Mantidos</strong>
+                </div>
+            </div>
+
+            <div class="phase">
+                <span class="phase-badge">FASE 3</span>
+                <h3>Gestão Profissional ($50 ➡️ $100)</h3>
+                <p>Você agora é um trader de elite. O foco muda para consistência.</p>
+                <ul>
+                    <li>Use margens de no máximo <strong>$10 por ativo</strong>.</li>
+                    <li>Pode abrir até 3 moedas simultâneas (desde que o BTC permita).</li>
+                    <li>Foco total no <strong>TTT</strong>: se a vela acabar e o alvo não bater, realize o lucro.</li>
+                </ul>
+            </div>
+        </section>
+
+        <section class="glass-card" style="border-color: var(--win-green); text-align: center;">
+            <h2 style="justify-content: center; color: var(--win-green);">Checklist Antes do Clique</h2>
+            <p>Se um destes não for "SIM", você não clica no botão ENTRAR.</p>
+            <div style="text-align: left; background: rgba(0,0,0,0.2); padding: 20px; border-radius: 12px;">
+                <p>✅ Scanner deu Score > 8?</p>
+                <p>✅ Raio-X mostra Confiança > 75%?</p>
+                <p>✅ BTC está a favor da minha entrada?</p>
+                <p>✅ Volume no micro está Forte (sem exaustão)?</p>
+            </div>
+            <p style="margin-top: 20px; font-style: italic;">"O mercado é uma transferência de dinheiro dos impacientes para os pacientes."</p>
+        </section>
+
+        <footer>
+            Gideon Sentinel System &copy; 2026 | Operação de Alta Precisão
+        </footer>
+    </div>
+</body>
+</html>

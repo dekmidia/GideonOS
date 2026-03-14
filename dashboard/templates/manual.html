@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manual do Operador | Gideon Sentinel</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --neon-orange: #ff8c00;
+            --neon-blue: #00d2ff;
+            --win-green: #10b981;
+            --loss-red: #ef4444;
+            --glass-bg: rgba(30, 41, 59, 0.7);
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-dark);
+            color: #f8fafc;
+            line-height: 1.6;
+            padding: 40px 20px;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+
+        .logo {
+            font-weight: 800;
+            font-size: 2.5rem;
+            letter-spacing: -1px;
+            margin-bottom: 10px;
+        }
+
+        .neon-text { color: var(--neon-orange); text-shadow: 0 0 20px rgba(255, 140, 0, 0.5); }
+
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 40px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+        }
+
+        h2 {
+            font-size: 1.8rem;
+            color: var(--neon-blue);
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        h2::before {
+            content: '';
+            width: 4px;
+            height: 24px;
+            background: var(--neon-blue);
+            border-radius: 20px;
+        }
+
+        h3 {
+            font-size: 1.2rem;
+            margin: 20px 0 10px;
+            color: #fff;
+        }
+
+        p { margin-bottom: 15px; color: #94a3b8; }
+
+        .tag {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .tag-green { background: rgba(16, 185, 129, 0.1); color: var(--win-green); border: 1px solid var(--win-green); }
+        .tag-red { background: rgba(239, 68, 68, 0.1); color: var(--loss-red); border: 1px solid var(--loss-red); }
+        .tag-blue { background: rgba(0, 210, 255, 0.1); color: var(--neon-blue); border: 1px solid var(--neon-blue); }
+        .tag-orange { background: rgba(255, 140, 0, 0.1); color: var(--neon-orange); border: 1px solid var(--neon-orange); }
+
+        .strategy-box {
+            background: rgba(0, 210, 255, 0.05);
+            border-left: 4px solid var(--neon-blue);
+            padding: 20px;
+            border-radius: 0 12px 12px 0;
+            margin: 30px 0;
+        }
+
+        ul { list-style: none; }
+        li { margin-bottom: 15px; padding-left: 25px; position: relative; color: #cbd5e1; }
+        li::before {
+            content: '▹';
+            position: absolute;
+            left: 0;
+            color: var(--neon-orange);
+        }
+
+        .highlight-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .h-item {
+            background: rgba(255,255,255,0.03);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        footer {
+            text-align: center;
+            color: #64748b;
+            font-size: 0.9rem;
+            margin-top: 60px;
+        }
+
+        .btn-back {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: var(--neon-orange);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+
+        .btn-back:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(255, 140, 0, 0.4);
+        }
+
+        @media (max-width: 768px) {
+            .highlight-grid { grid-template-columns: 1fr; }
+            .glass-card { padding: 25px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo"><span class="neon-text">GIDEON</span> SENTINEL</div>
+            <p>Manual do Operador | Versão 3.0 (Laranja Mecânica)</p>
+            <a href="/" class="btn-back">VOLTAR AO DASHBOARD</a>
+        </header>
+
+        <section class="glass-card">
+            <h2>Dashboard e Monitoramento</h2>
+            <p>O sistema monitora o mercado 24/7 em busca de anomalias e padrões de lucro rápido.</p>
+            
+            <div class="highlight-grid">
+                <div class="h-item">
+                    <h3>Carteira Ativa</h3>
+                    <p>Onde suas ordens vivem. Fique de olho no <span class="tag tag-blue">PNL (%)</span>. Se o lucro estiver alto e a <span class="tag tag-orange">EXPECTATIVA (TTT)</span> estiver acabando, é hora de realizar o ganho.</p>
+                </div>
+                <div class="h-item">
+                    <h3>Sentinela Scanner</h3>
+                    <p>O radar. Foque em sinais com <span class="tag tag-green">SCORE > 7</span>. Estes têm maior volume e confirmação técnica.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="glass-card">
+            <h2>Raio-X IA (Multitempo)</h2>
+            <p>A ferramenta ⚡ IA analisa 6 tempos gráficos simultaneamente para te dar o veredito final.</p>
+            
+            <ul>
+                <li><strong>Tendência de ALTA:</strong> Dominância de compradores. Preço acima da Nuvem de Ichimoku.</li>
+                <li><strong>Tendência de BAIXA:</strong> Dominância de vendedores. Pressão de queda.</li>
+                <li><strong>NEUTRO:</strong> Mercado indeciso. Momento de proteção de capital (não entre).</li>
+            </ul>
+
+            <div class="strategy-box">
+                <strong>O Veredito:</strong> Se a Confiança for superior a 75%, o sistema indica uma entrada de alta probabilidade. Menos que 50% é considerado ruído.
+            </div>
+        </section>
+
+        <section class="glass-card" style="border-color: var(--neon-orange);">
+            <h2>Filtros do Pilar Elite</h2>
+            <p>Estes são os filtros que transformam um trader comum em um profissional de elite.</p>
+            
+            <div class="h-item" style="margin-bottom: 20px;">
+                <h3>🛡️ A Regra do Bitcoin (BTC Trend)</h3>
+                <p>O Bitcoin é a maré. <strong>BTC EM ALTA</strong> favorece compras. <strong>BTC EM BAIXA</strong> favorece vendas. Operar contra o BTC é assinar um prejuízo. O Raio-X agora exibe o status do BTC no topo.</p>
+            </div>
+
+            <div class="h-item">
+                <h3>📊 Exaustão de Volume</h3>
+                <p>Se o preço sobe mas o volume é <span class="tag tag-red">EXAUSTÃO</span>, significa que não há compradores reais, apenas robôs. Uma reversão é iminente. Entre somente quando o volume estiver <span class="tag tag-green">FORTE</span>.</p>
+            </div>
+        </section>
+
+        <div class="strategy-box" style="background: rgba(16, 185, 129, 0.05); border-color: var(--win-green);">
+            <h2>A Receita do Ganho</h2>
+            <p>1. Scanner aponta Score > 7.<br>
+               2. Raio-X IA confirma direção com Confiança > 70%.<br>
+               3. BTC está a favor ou neutro.<br>
+               4. Volume no tempo micro (1m/5m) está Forte.<br>
+               <strong>Resultado: Clique no botão ENTRAR e execute na BingX.</strong></p>
+        </div>
+
+        <footer>
+            Gideon Sentinel System &copy; 2026 | Desenvolvido para Alta Performance
+        </footer>
+    </div>
+</body>
+</html>

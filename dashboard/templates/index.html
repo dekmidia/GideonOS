@@ -15,52 +15,94 @@
                 <span class="neon-text">GIDEON</span> SENTINEL
             </div>
             <div class="status-bar">
+                <a href="/plano" class="plano-link" style="color: var(--neon-orange); text-decoration: none; font-size: 0.75rem; font-weight: 800; border: 1px solid var(--neon-orange); padding: 4px 10px; border-radius: 6px; margin-right: 10px; transition: 0.3s;">O PLANO 🎯</a>
+                <a href="/manual" class="manual-link" style="color: var(--neon-blue); text-decoration: none; font-size: 0.75rem; font-weight: 800; border: 1px solid var(--neon-blue); padding: 4px 10px; border-radius: 6px; margin-right: 15px; transition: 0.3s;">ABRIR MANUAL 📖</a>
                 <div id="connection-status" class="status-dot"></div>
                 <span id="time-display">00:00:00</span>
             </div>
         </header>
 
         <main>
-            <!-- SEÇÃO DE MONITORAMENTO DE CARTEIRA -->
-            <section id="portfolio">
-                <div class="section-header">
-                    <h2>CARTEIRA ATIVA</h2>
-                    <span class="badge">LEDGER MONITOR</span>
-                </div>
-                <div id="portfolio-grid" class="grid-container">
-                    <div class="loading-spinner">Sincronizando com Ledger...</div>
-                </div>
-            </section>
+            <!-- TABS NAVIGATION -->
+            <nav class="tabs-nav">
+                <button class="tab-link active" onclick="switchTab('monitor-section')">DASHBOARD</button>
+                <button class="tab-link" onclick="switchTab('history-section')">HISTÓRICO</button>
+            </nav>
 
-            <!-- SEÇÃO DE SCANNER DE MERCADO -->
-            <section id="scanner">
-                <div class="section-header">
-                    <h2>SENTINELA SCANNER</h2>
-                    <span class="badge neon-orange">LIVE V3</span>
+            <div id="monitor-section" class="tab-content active">
+                <div class="dashboard-grid">
+                    <!-- SEÇÃO CARTEIRA -->
+                    <section class="portfolio-section glass-bg">
+                        <h2>CARTEIRA ATIVA</h2>
+                        <div id="portfolio-grid" class="portfolio-grid">
+                            <!-- Cards serão inseridos aqui -->
+                        </div>
+                    </section>
+
+                    <!-- SEÇÃO SCANNER -->
+                    <section class="scanner-section glass-bg">
+                        <div class="section-header">
+                            <h2>SENTINELA SCANNER</h2>
+                            <button id="btn-scan" class="btn-action btn-entry" onclick="manualScan()">SCANEAR AGORA</button>
+                        </div>
+                        <div id="progress-container" class="progress-hidden">
+                            <div id="progress-bar"></div>
+                        </div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Símbolo</th>
+                                        <th>Preço</th>
+                                        <th>Alvo (TP)</th>
+                                        <th>Stop (SL)</th>
+                                        <th id="header-score" onclick="toggleScannerSort()" style="cursor: pointer; color: var(--neon-orange);">Score ▼</th>
+                                        <th>Status</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="scanner-body">
+                                    <!-- Sinais serão inseridos aqui -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="log-display" class="log-area">
+                            [SYSTEM] Bem-vindo, Operador. Sistema Laranja Mecânica V3 pronto.
+                        </div>
+                    </section>
                 </div>
-                <table class="glass-table">
-                    <thead>
-                        <tr>
-                            <th>SÍMBOLO</th>
-                            <th>PREÇO</th>
-                            <th>RSI 4H</th>
-                            <th>B. BAND (1H)</th>
-                            <th>STATUS</th>
-                        </tr>
-                    </thead>
-                    <tbody id="scanner-body">
-                        <tr>
-                            <td colspan="5" style="text-align: center;">Iniciando varredura de mercado...</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </section>
+            </div>
+
+            <div id="history-section" class="tab-content">
+                <section class="history-section glass-bg">
+                    <h2>HISTÓRICO DE OPERAÇÕES</h2>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Abertura</th>
+                                    <th>Saída</th>
+                                    <th>Par</th>
+                                    <th>TF</th>
+                                    <th>TTT</th>
+                                    <th>Tipo</th>
+                                    <th>Resultado</th>
+                                    <th>PnL (%)</th>
+                                    <th>Notas</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-body">
+                                <!-- Histórico será inserido aqui -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
         </main>
 
         <footer>
-            <div class="log-area" id="log-display">
-                [SYSTEM] Bem-vindo, Operador. Sistema Laranja Mecânica V3 pronto.
-            </div>
+            <!-- The log-area was moved inside the scanner-section -->
         </footer>
     </div>
 
@@ -72,6 +114,59 @@
                 <button id="close-modal" class="close-btn">&times;</button>
             </div>
             <div id="tradingview-container" class="chart-container"></div>
+        </div>
+    </div>
+
+    <!-- MODAL DE CONFIRMAÇÃO DE ORDEM BINGX -->
+    <div id="order-modal" class="modal-overlay">
+        <div class="modal-content glass-bg" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>CONFIRMAR OPERAÇÃO</h3>
+                <button id="close-order-modal" class="close-btn">&times;</button>
+            </div>
+            <div class="order-summary">
+                <div class="order-row"><span>Ativo:</span> <strong id="order-symbol">---</strong></div>
+                <div class="order-row"><span>Lado:</span> <strong id="order-side" class="side-short">SHORT</strong></div>
+                <div class="order-row"><span>Entrada:</span> <strong id="order-entry">0.00</strong></div>
+                <div class="order-row"><span>Alvo (TP):</span> <strong id="order-tp" style="color: var(--neon-blue);">0.00</strong></div>
+                <div class="order-row"><span>Stop (SL):</span> <strong id="order-sl" style="color: var(--loss-red);">0.00</strong></div>
+                <div class="order-row"><span>Alavancagem:</span> <strong>8x</strong></div>
+                
+                <div class="order-input-group">
+                    <label>Margem (USDT):</label>
+                    <input type="number" id="order-margin" value="10" min="2" step="1">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="btn-confirm-order" class="btn-action btn-entry" style="width: 100%; margin-top: 15px; padding: 12px;">EXECUTAR NA BINGX</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- DRAWER DE ANÁLISE (RAIO-X IA) -->
+    <div id="analysis-drawer" class="analysis-drawer">
+        <div class="drawer-header">
+            <h3 id="drawer-symbol">ANÁLISE IA</h3>
+            <button onclick="closeAnalysis()" class="close-btn">&times;</button>
+        </div>
+        
+        <div id="analysis-content">
+            <div class="analysis-grid" id="analysis-grid">
+                <!-- Blocos de Timeframe (1m, 5m, 15m, 30m, 1h, 4h) -->
+            </div>
+
+            <div class="verdict-area">
+                <div class="verdict-title">VEREDITO FINAL</div>
+                <div id="verdict-value" class="verdict-value">---</div>
+                <div id="verdict-reason" class="verdict-reason">
+                    Carregando análise técnica multitempo...
+                </div>
+                <div class="verdict-confidence">
+                    <span>Confiança:</span>
+                    <div class="conf-bar"><div id="conf-fill" class="conf-fill" style="width: 0%"></div></div>
+                    <span id="conf-value">0%</span>
+                </div>
+            </div>
         </div>
     </div>
 
