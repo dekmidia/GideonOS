@@ -17,6 +17,15 @@ CORS(app)
 BINGX_URL = "https://open-api.bingx.com"
 LEDGER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'ledger_trades.md')
 
+# SESSÃO GLOBAL PARA REUSO DE CONEXÕES (SPEED UP)
+http_session = requests.Session()
+
+# CACHE PARA STATUS MACRO (ALTSEASON / BTC)
+macro_cache = {
+    "data": None,
+    "last_update": 0
+}
+
 def get_bingx_signature(params_str, secret):
     return hmac.new(secret.encode('utf-8'), params_str.encode('utf-8'), hashlib.sha256).hexdigest()
 
@@ -61,7 +70,7 @@ def get_data(symbol, interval, limit=100):
     try:
         # BTCDOMUSDT só existe nos Futuros
         url = f'https://fapi.binance.com/fapi/v1/klines?symbol={symbol}&interval={interval}&limit={limit}' if "DOM" in symbol else f'https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}'
-        r = requests.get(url, timeout=5).json()
+        r = http_session.get(url, timeout=5).json()
         if not isinstance(r, list): return None
         df = pd.DataFrame(r, columns=['t','o','h','l','c','v','ct','q','tr','tb','tg','i'])
         df['c'] = df['c'].astype(float)
@@ -76,7 +85,7 @@ def get_ticker_price(symbol):
     """Busca o preço instantâneo (ticker) na Binance."""
     try:
         url = f'https://api.binance.com/api/v3/ticker/price?symbol={symbol}'
-        r = requests.get(url, timeout=2).json()
+        r = http_session.get(url, timeout=2).json()
         return float(r['price'])
     except:
         return None
@@ -120,11 +129,23 @@ def calc_ichimoku(df):
         return 0, 0, 0
 
 def validar_altseason():
-    """Valida cenário macro e retorna status formatado."""
+    """Valida cenário macro com cache de 60s para performance extrema."""
+    global macro_cache
+    agora = time.time()
+    
+    if macro_cache["data"] and (agora - macro_cache["last_update"] < 60):
+        return macro_cache["data"]
+
     try:
-        df_btc = get_data('BTCUSDT', '1h', 50)
-        df_dom = get_data('BTCDOMUSDT', '1h', 50)
-        if df_btc is None or df_dom is None: return False, "NEUTRO"
+        # Chamadas paralelas para BTC e Dominância (Speed Boost)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            f_btc = executor.submit(get_data, 'BTCUSDT', '1h', 50)
+            f_dom = executor.submit(get_data, 'BTCDOMUSDT', '1h', 50)
+            df_btc = f_btc.result()
+            df_dom = f_dom.result()
+
+        if df_btc is None or df_dom is None: 
+            return False, "NEUTRO"
         
         sma_dom = df_dom['c'].rolling(20).mean().iloc[-1]
         dom_atual = df_dom['c'].iloc[-1]
@@ -133,6 +154,11 @@ def validar_altseason():
         
         altseason = dom_atual < sma_dom and btc_atual > (sma_btc * 0.995)
         status = "🌟 ALTSEASON ATIVA" if altseason else "⚠️ BTC DOMINANTE"
+        
+        # Atualiza Cache
+        macro_cache["data"] = (altseason, status)
+        macro_cache["last_update"] = agora
+        
         return altseason, status
     except:
         return False, "NEUTRO"
@@ -147,7 +173,10 @@ def get_multi_timeframe_analysis(symbol):
     intervals = ['1m', '5m', '15m', '30m', '1h', '4h']
     analysis = {}
     
-    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+    # Busca BTC Status ANTES ou durante para aproveitar cache/paralelismo
+    btc_status = get_btc_status() if symbol != 'BTCUSDT' else "N/A"
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
         future_to_int = {executor.submit(get_data, symbol, i, 100): i for i in intervals}
         for future in concurrent.futures.as_completed(future_to_int):
             interval = future_to_int[future]
@@ -184,14 +213,7 @@ def get_multi_timeframe_analysis(symbol):
     
     # Motor de Veredito Reequilibrado
     verdict = "INDETERMINADO"
-    weights = {
-        '4h': 2.0,   # Reduzido de 3.0 para evitar vício
-        '1h': 1.8,   # Reduzido de 2.0
-        '30m': 1.5,
-        '15m': 1.5,  # Aumentado de 1.0 (voz do micro)
-        '5m': 1.2,   # Aumentado de 0.5 (voz do micro)
-        '1m': 0.8    # Aumentado de 0.2 (voz do micro)
-    }
+    weights = {'4h': 2.0, '1h': 1.8, '30m': 1.5, '15m': 1.5, '5m': 1.2, '1m': 0.8}
     
     total_weight = 0
     bull_score = 0
@@ -204,39 +226,16 @@ def get_multi_timeframe_analysis(symbol):
             
     confidence = (bull_score / (total_weight or 1)) * 100
     
-    # Lógica de Veto (Voz do Micro)
-    micro_plunge = analysis.get('15m', {}).get('trend') == "BAIXA" and \
-                   analysis.get('5m', {}).get('trend') == "BAIXA" and \
-                   analysis.get('1m', {}).get('trend') == "BAIXA"
-                   
-    is_divergent = False
-    if confidence > 50 and micro_plunge:
-        confidence = 50 # Força neutralidade se micro está derretendo
-        is_divergent = True
-
     if confidence > 75: verdict = "🚀 ALTA FORTE"
     elif confidence > 60: verdict = "📈 ALTA PROVÁVEL"
     elif confidence < 25: verdict = "📉 QUEDA FORTE"
     elif confidence < 40: verdict = "📉 QUEDA PROVÁVEL"
     else: verdict = "⚖️ LATERAL / INDECISO"
     
-    # Gerar frase analítica
-    btc_status = get_btc_status() if symbol != 'BTCUSDT' else "N/A"
     macro_trend = analysis.get('4h', {}).get('trend', 'NEUTRO')
     micro_rsi = analysis.get('5m', {}).get('rsi', 50)
-    vol_5m = analysis.get('5m', {}).get('volume', 'NORMAL')
     
-    # Ajuste de confiança baseado no BTC
-    if symbol != 'BTCUSDT':
-        if btc_status == "ALTA" and confidence < 40: # Querendo vender com BTC subindo
-            confidence *= 0.7 
-        elif btc_status == "BAIXA" and confidence > 60: # Querendo comprar com BTC caindo
-            confidence *= 0.7
-            
-    reason = f"BTC está em {btc_status}. Macrotendência (4h): {macro_trend}. "
-    if is_divergent: reason += "⚠️ DIVERGÊNCIA: Macro alta, mas Micro derretendo. Risco de reversão! "
-    if vol_5m == "EXAUSTÃO": reason += "Cuidado: Exaustão de volume detectada no micro. "
-    
+    reason = f"Macrotendência (4h): {macro_trend}. BTC: {btc_status}. "
     if micro_rsi > 70: reason += "Sobrecomprado (RSI > 70)."
     elif micro_rsi < 30: reason += "Sobrevendido (RSI < 30)."
     
@@ -321,12 +320,44 @@ def detectar_rsi_momentum(df, interval):
         }
     return None
 
+def salvar_sinal_ativo(sinal):
+    """Salva sinal em tempo real para o dashboard."""
+    try:
+        if os.path.exists('sinais_ativos.json'):
+            with open('sinais_ativos.json', 'r') as f:
+                sinais = json.load(f)
+        else:
+            sinais = []
+        
+        # Evitar duplicatas (mesmo símbolo e status)
+        if not any(s['symbol'] == sinal['symbol'] and s['status'] == sinal['status'] for s in sinais):
+            sinais.append(sinal)
+            # Ordenar por score
+            sinais = sorted(sinais, key=lambda x: x['score'], reverse=True)
+            with open('sinais_ativos.json', 'w') as f:
+                json.dump(sinais, f)
+    except: pass
+
+@app.route('/api/latest_signals')
+def api_latest_signals():
+    if not os.path.exists('sinais_ativos.json'):
+        return jsonify([])
+    try:
+        with open('sinais_ativos.json', 'r') as f:
+            return jsonify(json.load(f))
+    except:
+        return jsonify([])
+
 @app.route('/api/scanner')
 def api_scanner():
     results = []
     processed_count = 0
     total_to_process = len(LISTA_PRIORIDADE)
     
+    # Limpar sinais antigos no início de uma nova varredura manual
+    with open('sinais_ativos.json', 'w') as f:
+        json.dump([], f)
+
     def check_symbol(symbol):
         local_results = []
         altseason_ativa, _ = validar_altseason()
@@ -341,9 +372,8 @@ def api_scanner():
             if df is None: continue
             laranja = detectar_laranja_mecanica(df, tf)
             if laranja:
-                # VETO DE SHORT: Se a IA detectou tendência de ALTA
-                if confidence > (100 - CONFIDENCA_MINIMA/1.5): # Ajuste proporcional
-                    print(f"  🚫 VETO (SHORT): {symbol} ignorado - IA detectou Alta.")
+                # VETO DE SHORT: IA detectou tendência de ALTA
+                if confidence > (100 - CONFIDENCA_MINIMA/1.5):
                     return []
 
                 rsi = calc_rsi(df)
@@ -351,34 +381,43 @@ def api_scanner():
                 perfil = PERFIS_MECANICA.get(tf, PERFIS_MECANICA["1h"])
                 tp, sl = price * perfil["tp"], price * perfil["sl"]
                 estimativa = estimar_tempo_alvo(price, tp, laranja["atr"])
-                local_results.append({
+                signal = {
                     'symbol': symbol, 'price': price, 'rsi4h': round(rsi, 2),
                     'bb_upper': tf.upper(), 'status': f"🍊 {laranja['estrategia']} ({tf})",
                     'side': 'Short', 'tp': round(tp, 6), 'sl': round(sl, 6),
-                    'estimativa': f"{estimativa} velas", 'score': 10 if (rsi > 70 and confidence < 40) else 8
-                })
+                    'estimativa': f"{estimativa} velas", 'score': 10 if (rsi > 70 and confidence < 40) else 8,
+                    'ai_conf': confidence
+                }
+                salvar_sinal_ativo(signal)
+                local_results.append(signal)
                 return local_results 
         
         # 4. Tentar RSI Momentum (Long) se Altseason Ativa
         if altseason_ativa:
-            # VETO DE LONG: Modo Snowball exige confiança alta
-            if confidence < CONFIDENCA_MINIMA:
-                return []
-
             for tf in ['1m', '5m', '15m']:
                 df = get_data(symbol, tf)
                 if df is None: continue
                 rsi_m = detectar_rsi_momentum(df, tf)
                 if rsi_m:
+                    status_long = f"🚀 {rsi_m['estrategia']} ({tf})"
+                    score_long = 10 if rsi_m['rsi'] < 30 else 8
+                    
+                    if confidence < CONFIDENCA_MINIMA:
+                        status_long = f"🚫 VETO IA ({confidence}%)"
+                        score_long = 1
+                    
                     price = df['c'].iloc[-1]
                     perfil = PERFIS_RSI_MOMENTUM.get(tf, PERFIS_RSI_MOMENTUM["1m"])
                     tp, sl = price * perfil["tp"], price * perfil["sl"]
-                    local_results.append({
+                    signal = {
                         'symbol': symbol, 'price': price, 'rsi4h': rsi_m['rsi'],
-                        'bb_upper': tf.upper(), 'status': f"🚀 {rsi_m['estrategia']} ({tf})",
+                        'bb_upper': tf.upper(), 'status': status_long,
                         'side': 'Long', 'tp': round(tp, 6), 'sl': round(sl, 6),
-                        'estimativa': "Rápida", 'score': 10 if rsi_m['rsi'] < 30 else 8
-                    })
+                        'estimativa': "Rápida", 'score': score_long,
+                        'ai_conf': confidence
+                    }
+                    salvar_sinal_ativo(signal)
+                    local_results.append(signal)
                     return local_results
         return local_results
 
@@ -700,19 +739,22 @@ def api_bingx_order():
         
         # 1. Alavancagem
         lev_path = "/openApi/swap/v2/trade/leverage"
-        lev_params = f"leverage=8&symbol={symbol}&timestamp={int(time.time() * 1000)}"
+        lev_params = f"leverage=8&symbol={symbol}&timestamp={int(time.time() * 1000)}&recvWindow=20000"
         lev_sig = get_bingx_signature(lev_params, secret_key)
         requests.post(f"{BINGX_URL}{lev_path}?{lev_params}&signature={lev_sig}", headers={"X-BX-APIKEY": api_key})
 
         # 2. Ordem Principal
         entry_price = float(data.get('price'))
-        # Quantidade: Se o preço for muito baixo (< 0.1), usamos round(..., 0) para evitar frações não suportadas
-        if entry_price < 0.1:
+        
+        # Lógica de Quantidade Refinada: Evitar Qty com muitas casas decimais que a exchange rejeita
+        if entry_price < 0.01:
             qty = round((float(margin) * 8.0) / entry_price, 0)
-        elif entry_price > 1:
+        elif entry_price < 0.1:
+            qty = round((float(margin) * 8.0) / entry_price, 1)
+        elif entry_price < 1.0:
             qty = round((float(margin) * 8.0) / entry_price, 2)
         else:
-            qty = round((float(margin) * 8.0) / entry_price, 1)
+            qty = round((float(margin) * 8.0) / entry_price, 3)
         
         print(f"🚀 [BINGX] Ordem Principal: {symbol} | Qty: {qty} | Price: {entry_price}")
 
@@ -723,20 +765,24 @@ def api_bingx_order():
             "positionSide": pos_side,
             "type": "MARKET",
             "quantity": qty,
-            "timestamp": int(time.time() * 1000)
+            "timestamp": int(time.time() * 1000),
+            "recvWindow": 20000
         }
         query = "&".join([f"{k}={v}" for k, v in sorted(params.items())])
         sig = get_bingx_signature(query, secret_key)
-        r = requests.post(f"{BINGX_URL}{order_path}?{query}&signature={sig}", headers={"X-BX-APIKEY": api_key})
+        r = http_session.post(f"{BINGX_URL}{order_path}?{query}&signature={sig}", headers={"X-BX-APIKEY": api_key})
         res = r.json()
         
         if res.get('code') == 0:
             print(f"✅ [BINGX] Sucesso na Ordem Principal")
             # 3. TP/SL - Formatação de precisão dinâmica
             def format_price(p):
-                # Para moedas < 0.1, usamos 5 casas. Para > 1, usamos 4 ou menos. 
-                # O round(..., 6) as vezes gera ruído.
-                return round(float(p), 5) if float(p) < 1 else round(float(p), 4)
+                # Para moedas muito baratas, precisamos de mais precisão. Para caras, menos.
+                val = float(p)
+                if val < 0.001: return round(val, 6)
+                if val < 0.1: return round(val, 5)
+                if val < 1: return round(val, 4)
+                return round(val, 3)
 
             tp_price = format_price(tp)
             sl_price = format_price(sl)
@@ -747,12 +793,13 @@ def api_bingx_order():
             tp_params = {
                 "symbol": symbol, "side": close_side, "positionSide": pos_side,
                 "type": "TAKE_PROFIT_MARKET", "stopPrice": tp_price, "quantity": qty,
-                "reduceOnly": "true", "workingType": "MARK_PRICE", "timestamp": int(time.time() * 1000)
+                "reduceOnly": "true", "workingType": "MARK_PRICE", "timestamp": int(time.time() * 1000),
+                "recvWindow": 20000
             }
             tp_query = "&".join([f"{k}={v}" for k, v in sorted(tp_params.items())])
-            tp_res = requests.post(f"{BINGX_URL}{order_path}?{tp_query}&signature={get_bingx_signature(tp_query, secret_key)}", headers={"X-BX-APIKEY": api_key}).json()
+            tp_res = http_session.post(f"{BINGX_URL}{order_path}?{tp_query}&signature={get_bingx_signature(tp_query, secret_key)}", headers={"X-BX-APIKEY": api_key}).json()
             if tp_res.get('code') != 0:
-                print(f"❌ [BINGX] Falha no TP: {tp_res.get('msg')}")
+                print(f"❌ [BINGX] Falha no TP: {tp_res}") # Log completo para diagnostico
             else:
                 print(f"✅ [BINGX] TP Configurado")
 
@@ -760,19 +807,22 @@ def api_bingx_order():
             sl_params = {
                 "symbol": symbol, "side": close_side, "positionSide": pos_side,
                 "type": "STOP_MARKET", "stopPrice": sl_price, "quantity": qty,
-                "reduceOnly": "true", "workingType": "MARK_PRICE", "timestamp": int(time.time() * 1000)
+                "reduceOnly": "true", "workingType": "MARK_PRICE", "timestamp": int(time.time() * 1000),
+                "recvWindow": 20000
             }
             sl_query = "&".join([f"{k}={v}" for k, v in sorted(sl_params.items())])
-            sl_res = requests.post(f"{BINGX_URL}{order_path}?{sl_query}&signature={get_bingx_signature(sl_query, secret_key)}", headers={"X-BX-APIKEY": api_key}).json()
+            sl_res = http_session.post(f"{BINGX_URL}{order_path}?{sl_query}&signature={get_bingx_signature(sl_query, secret_key)}", headers={"X-BX-APIKEY": api_key}).json()
             if sl_res.get('code') != 0:
-                print(f"❌ [BINGX] Falha no SL: {sl_res.get('msg')}")
+                print(f"❌ [BINGX] Falha no SL: {sl_res}") # Log completo para diagnostico
             else:
                 print(f"✅ [BINGX] SL Configurado")
 
             return jsonify({'status': 'success', 'message': f'Operação em {symbol} executada!'})
         else:
-            return jsonify({'status': 'error', 'message': res.get('msg', 'Erro BingX')})
+            print(f"❌ [BINGX] Erro Crítico Ordem: {res}")
+            return jsonify({'status': 'error', 'message': f"BingX: ({res.get('code')}) {res.get('msg')}"})
     except Exception as e:
+        print(f"❌ [BINGX] Exceção: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 if __name__ == '__main__':

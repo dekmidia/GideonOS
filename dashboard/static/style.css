@@ -343,7 +343,7 @@ footer {
 }
 
 .glass-bg {
-    background: rgba(15, 23, 42, 0.9);
+    background: rgba(8, 14, 28, 0.98); /* Quase sólido para melhor leitura */
 }
 
 /* ACTION BUTTONS */
@@ -713,7 +713,7 @@ footer {
 /* --- TOAST SYSTEM --- */
 .toast-container {
     position: fixed;
-    bottom: 30px;
+    top: 30px;
     right: 30px;
     z-index: 9999;
     display: flex;
@@ -821,4 +821,59 @@ footer {
     background: linear-gradient(to right, transparent, rgba(255,255,255,0.05), transparent);
     animation: shine 1.5s infinite;
     pointer-events: none;
+}
+
+/* --- ALERT STACK (TOP RIGHT) --- */
+#alert-stack {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    width: 320px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.alert-card {
+    background: #0f172a; /* Fundo sólido e escuro */
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
+    animation: slideInRight 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    position: relative;
+    overflow: hidden;
+}
+
+.alert-card.short {
+    border-left: 4px solid var(--loss-red);
+}
+
+.alert-card.long {
+    border-left: 4px solid var(--win-green);
+}
+
+.alert-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, rgba(255,255,255,0.02) 0%, transparent 100%);
+    pointer-events: none;
+}
+
+@keyframes slideInRight {
+    from { transform: translateX(120%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+.alert-card .btn-action {
+    transition: all 0.2s;
+}
+
+.alert-card .btn-action:hover {
+    transform: scale(1.02);
 }

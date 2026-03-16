@@ -64,6 +64,31 @@ PERFIS_RSI_MOMENTUM = {
 
 _PROXIMO_INDICE_ROTATIVO = 0
 
+def salvar_sinal_ativo(sinal):
+    """Salva sinal em tempo real para o dashboard."""
+    try:
+        # Caminho relativo se o gate_keeper.py estiver em dashboard/
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dashboard', 'sinais_ativos.json')
+        # Se estiver rodando da raiz, ajusta o caminho
+        if not os.path.exists(os.path.dirname(path)):
+            path = 'sinais_ativos.json'
+
+        if os.path.exists(path):
+            with open(path, 'r') as f:
+                sinais = json.load(f)
+        else:
+            sinais = []
+        
+        # Evitar duplicatas (mesmo símbolo e status)
+        if not any(s['symbol'] == sinal['symbol'] and s['status'] == sinal['status'] for s in sinais):
+            sinais.append(sinal)
+            # Ordenar por score e manter apenas os 20 mais recentes/relevantes
+            sinais = sorted(sinais, key=lambda x: x.get('score', 0), reverse=True)[:20]
+            with open(path, 'w') as f:
+                json.dump(sinais, f)
+    except Exception as e:
+        print(f"  ⚠️ Erro ao salvar sinal no cache: {e}")
+
 # ─────────────────────────────────────────────────
 # UTILITÁRIOS — NOTIFICAÇÕES
 # ─────────────────────────────────────────────────
@@ -358,6 +383,14 @@ def scan_mercado():
                         f"📊 *IA Confiança:* {conf:.1f}%\n"
                         f"━━━━━━━━━━━━━━━━━━━━━━"
                     )
+                    signal = {
+                        'symbol': symbol, 'price': preco, 'rsi4h': round(s_mecanica.get('rsi', 50), 2),
+                        'bb_upper': tf.upper(), 'status': f"🍊 {s_mecanica['estrategia']} ({tf})",
+                        'side': 'Short', 'tp': round(tp, 6), 'sl': round(sl, 6),
+                        'estimativa': f"{estimativa} velas", 'score': s_mecanica['score'],
+                        'ai_conf': conf
+                    }
+                    salvar_sinal_ativo(signal)
                     enviar_telegram(msg)
 
         # --- 2. ESTRATÉGIA RSI MOMENTUM (LONG) ---
@@ -387,6 +420,14 @@ def scan_mercado():
                         f"📊 *Status:* {status_macro}\n"
                         f"━━━━━━━━━━━━━━━━━━━━━━"
                     )
+                    signal = {
+                        'symbol': symbol, 'price': preco, 'rsi4h': s_rsi['rsi'],
+                        'bb_upper': tf.upper(), 'status': f"🚀 {s_rsi['estrategia']} ({tf})",
+                        'side': 'Long', 'tp': round(tp, 6), 'sl': round(sl, 6),
+                        'estimativa': "Rápida", 'score': 10 if s_rsi['rsi'] < 30 else 8,
+                        'ai_conf': conf
+                    }
+                    salvar_sinal_ativo(signal)
                     enviar_telegram(msg)
 
 def iniciar_loop():

@@ -1,6 +1,100 @@
 const API_URL = 'http://127.0.0.1:5000/api';
 
-// --- SISTEMA DE NOTIFICAÇÕES TOAST ---
+// --- SISTEMA DE ALERTA EM SEGUNDO PLANO (WEB NOTIFICATIONS) ---
+let notificationPermission = false;
+if ("Notification" in window) {
+    if (Notification.permission === "granted") {
+        notificationPermission = true;
+    } else {
+        Notification.requestPermission().then(permission => {
+            notificationPermission = (permission === "granted");
+        });
+    }
+}
+
+function sendDesktopNotification(title, message, symbol) {
+    if (notificationPermission && document.hidden) {
+        new Notification(title, {
+            body: message,
+            icon: '/static/img/logo.png' // Fallback se existir
+        }).onclick = () => {
+            window.focus();
+            openChart(symbol);
+        };
+    }
+}
+
+// --- CONTAINER DE ALERTAS VISUAIS (SUBSTUTUTO AO TOAST PARA SINAIS) ---
+function showPersistentAlert(sig) {
+    // DESATIVADO: Remoção dos Cards no Dashboard a pedido do usuário
+    /*
+    const container = document.getElementById('alert-stack') || createAlertContainer();
+    const alertId = `alert-${sig.symbol}-${sig.bb_upper}`.replace(/\s+/g, '-');
+    
+    // Evitar duplicatas na tela
+    if (document.getElementById(alertId)) return;
+
+    // NOVO FILTRO: Apenas Cards para Score >= 8.5. 
+    // Entre 8.0 e 8.5, emitimos apenas um Toast para não poluir.
+    if (sig.score < 8.5) {
+        if (sig.score >= 8.0) {
+            showToast(`Oportunidade em ${sig.symbol} (Score: ${sig.score})`, 'info');
+        }
+        return;
+    }
+
+    // LIMITE DE CARDS: Máximo 3 cards na tela. Se houver 3, remove o mais antigo.
+    const currentAlerts = container.querySelectorAll('.alert-card');
+    if (currentAlerts.length >= 3) {
+        currentAlerts[currentAlerts.length - 1].remove();
+    }
+
+    const card = document.createElement('div');
+    card.id = alertId;
+    card.className = `alert-card ${sig.side.toLowerCase()}`;
+    
+    const isShort = sig.side.toLowerCase() === 'short';
+    
+    card.innerHTML = `
+        <div class="alert-card-header" style="border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px; margin-bottom: 8px;">
+            <strong>${isShort ? '🍊 SHORT' : '🚀 LONG'} GOLD!</strong>
+            <button onclick="this.parentElement.parentElement.remove()" style="background:none; border:none; color:white; cursor:pointer; float:right;">✕</button>
+        </div>
+        <div style="font-size: 1.1rem; margin-bottom: 5px;"><strong>${sig.symbol}</strong> <small>(${sig.bb_upper})</small></div>
+        <div style="font-size: 0.85rem; color: #ffd700;">Preço: ${sig.price} | Score: ${sig.score}/10 🏆</div>
+        <div style="margin-top: 10px; display: flex; gap: 5px;">
+            <button class="btn-action pulse-success" style="flex:1; height: 32px; font-size: 0.75rem;" onclick="handleEntry('${sig.symbol}', ${sig.price}, '${sig.side}', ${sig.tp}, ${sig.sl}, '${sig.bb_upper}', '${sig.estimativa}')">ENTRAR AGORA</button>
+            <button class="btn-action" style="flex:0.4; height: 32px; font-size: 0.75rem; background: var(--card-bg);" onclick="openChart('${sig.symbol}')">GRÁFICO</button>
+        </div>
+    `;
+    
+    container.prepend(card);
+    
+    // Auto-remove após 60 segundos
+    setTimeout(() => { if (card && card.parentElement) card.remove(); }, 60000);
+    */
+
+    // Se o score for alto, ainda podemos mostrar um Toast rápido ou apenas Notificação de Desktop
+    if (sig.score >= 8.0) {
+        showToast(`Sinal de ${sig.side}: ${sig.symbol} (Score: ${sig.score})`, sig.score >= 8.5 ? 'gold' : 'info');
+    }
+    
+    // Notificação de Desktop (Segundo Plano) - Mantida para o operador não perder o sinal
+    sendDesktopNotification(
+        `${sig.side.toUpperCase()} GOLD em ${sig.symbol}!`,
+        `Entrada: ${sig.price}. Score: ${sig.score}/10`,
+        sig.symbol
+    );
+}
+
+function createAlertContainer() {
+    const container = document.createElement('div');
+    container.id = 'alert-stack';
+    document.body.appendChild(container);
+    return container;
+}
+
+// --- SISTEMA DE NOTIFICAÇÕES TOAST (INFO RÁPIDA) ---
 function showToast(message, type = 'info') {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
@@ -19,11 +113,7 @@ function showToast(message, type = 'info') {
     `;
     
     container.appendChild(toast);
-    
-    // Forçar reflow para animação
     setTimeout(() => toast.classList.add('show'), 10);
-    
-    // Remover após 4 segundos
     setTimeout(() => {
         toast.classList.remove('show');
         setTimeout(() => toast.remove(), 400);
@@ -226,28 +316,35 @@ async function openAnalysis(symbol) {
         const tfs = ['1m', '5m', '15m', '30m', '1h', '4h'];
         tfs.forEach(tf => {
             const info = data.timeframes[tf];
+            if (!info) return; // Proteção contra TF ausente
+
             const block = document.createElement('div');
             block.className = 'tf-block';
             
             const color = info.trend === 'ALTA' ? 'var(--win-green)' : (info.trend === 'BAIXA' ? 'var(--loss-red)' : 'rgba(255,255,255,0.4)');
-            const volClass = info.volume === 'EXAUSTÃO' ? 'vol-exaustao' : (info.volume === 'FORTE' ? 'vol-forte' : '');
-            
+            const volStatus = info.volume || 'NORMAL';
+            const volClass = volStatus === 'EXAUSTÃO' ? 'vol-exaustao' : (volStatus === 'FORTE' ? 'vol-forte' : '');
+            const trendText = info.trend || 'N/A';
+            const rsiVal = info.rsi !== undefined ? info.rsi : '??';
+            const candleText = info.candle || '';
+
             block.innerHTML = `
                 <span class="tf-label">${tf}</span>
-                <span class="tf-status" style="color: ${color}">${info.trend}</span>
-                <span class="tf-rsi">RSI: ${info.rsi} | ${info.candle}</span>
-                <span class="vol-badge ${volClass}">${info.volume}</span>
+                <span class="tf-status" style="color: ${color}">${trendText}</span>
+                <span class="tf-rsi">RSI: ${rsiVal} | ${candleText}</span>
+                <span class="vol-badge ${volClass}">${volStatus}</span>
             `;
             grid.appendChild(block);
         });
 
         // Renderizar Veredito
-        verdictValue.innerText = data.verdict;
-        verdictReason.innerText = data.reason;
-        confFill.style.width = `${data.confidence}%`;
-        confValue.innerText = `${data.confidence}%`;
+        verdictValue.innerText = data.verdict || 'INDETERMINADO';
+        verdictReason.innerText = data.reason || 'Sem detalhes técnicos.';
+        confFill.style.width = `${data.confidence || 0}%`;
+        confValue.innerText = `${data.confidence || 0}%`;
 
     } catch (err) {
+        console.error('[ERRO RAIO-X]', err);
         grid.innerHTML = `<div style="grid-column: 1/-1; color: var(--loss-red);">Erro na análise: ${err.message}</div>`;
     }
 }
@@ -402,15 +499,20 @@ async function manualScan() {
     progressContainer.classList.remove('progress-hidden');
     progressBar.style.width = '0%';
     
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--neon-orange);">Executando varredura multithread em +120 moedas...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--neon-orange);">Executando varredura multithread em +400 moedas...</td></tr>';
     logArea.innerText = `[SCANNER] Iniciando varredura manual em ${new Date().toLocaleTimeString()}...`;
-    showToast('Iniciando varredura em 120+ moedas...', 'info');
+    showToast('Iniciando varredura em 400+ moedas...', 'info');
 
-    // Animação fake para dar sensação de progresso enquanto a API processa
+    // Polling de sinais parciais para não deixar a tela vazia
+    const pollInterval = setInterval(() => {
+        updateScanner(true); // true = modo silencioso (sem limpar tela)
+    }, 3000);
+
+    // Animação de progresso (estimativa)
     let progress = 0;
-    const interval = setInterval(() => {
+    const progressInterval = setInterval(() => {
         if (progress < 95) {
-            progress += (95 - progress) * 0.1;
+            progress += (95 - progress) * 0.05;
             progressBar.style.width = `${progress}%`;
         }
     }, 1000);
@@ -423,7 +525,8 @@ async function manualScan() {
     } catch (err) {
         logArea.innerText = `[SCANNER] Falha na varredura.`;
     } finally {
-        clearInterval(interval);
+        clearInterval(pollInterval);
+        clearInterval(progressInterval);
         setTimeout(() => {
             progressContainer.classList.add('progress-hidden');
             btn.disabled = false;
@@ -443,11 +546,14 @@ function toggleScannerSort() {
     updateScanner();
 }
 
-async function updateScanner() {
+async function updateScanner(isSilent = false) {
     try {
-        const response = await fetch(`${API_URL}/scanner`);
+        const endpoint = isSilent ? 'latest_signals' : 'scanner';
+        const response = await fetch(`${API_URL}/${endpoint}`);
         let signals = await response.json();
         
+        if (isSilent && signals.length === 0) return; // Não limpa nada se for silent e vazio
+
         // Aplicar ordenação
         signals.sort((a, b) => {
             const scoreA = parseFloat(a.score) || 0;
@@ -456,6 +562,14 @@ async function updateScanner() {
         });
 
         const tbody = document.getElementById('scanner-body');
+        
+        // Se houver sinais novos e houver mudança na contagem, atualiza a tabela
+        // Ou se não for silent (que é quando a varredura termina)
+        const currentRows = tbody.querySelectorAll('tr').length;
+        if (isSilent && signals.length <= (currentRows > 1 ? currentRows : 0) && currentRows > 1) {
+            return; // Evita re-renderizar se não houver novidades
+        }
+
         tbody.innerHTML = '';
 
         if (signals.length === 0) {
@@ -467,14 +581,20 @@ async function updateScanner() {
             const row = document.createElement('tr');
             row.style.cursor = 'pointer';
             
-            // Destaque para Sinais de Ouro
-            if (parseFloat(sig.score) >= 8.5) {
+            // Disparar Alerta Visual se for sinal novo e de confiança (somente no polling silencioso)
+            if (isSilent && !sig.status.includes('VETO') && sig.score >= 8) {
+                showPersistentAlert(sig);
+            }
+
+            // Destaque para Sinais de Ouro e Veto
+            if (sig.status.includes('VETO')) {
+                row.style.opacity = '0.6';
+            } else if (parseFloat(sig.score) >= 8.5) {
                 row.classList.add('gold-signal');
-                console.log(`[UX] Sinal de Ouro detectado: ${sig.symbol}`);
             }
             
             const side = sig.side || (sig.status.includes('SHORT') || sig.status.includes('LARANJA') ? 'Short' : 'Long');
-            const statusClass = side === 'Short' ? 'alert-short' : 'maduro';
+            const statusClass = side === 'Short' ? 'alert-short' : (sig.status.includes('VETO') ? 'btc-neutro' : 'maduro');
 
             row.innerHTML = `
                 <td onclick="openChart('${sig.symbol}')" style="cursor: pointer;"><strong>${sig.symbol}</strong><br><small style="color:var(--text-dim);">${sig.bb_upper}</small></td>
@@ -493,24 +613,26 @@ async function updateScanner() {
                 </td>
             `;
 
-            // Clique no botão abre a confirmação BingX
             const bntEntry = row.querySelector('.btn-entry-action');
             bntEntry.addEventListener('click', (e) => {
-                e.stopPropagation(); // Evita abrir o gráfico junto
-                console.log(`[UI] Clique no botão ENTRAR para ${sig.symbol}`);
+                e.stopPropagation();
                 handleEntry(sig.symbol, sig.price, side, sig.tp, sig.sl, sig.bb_upper, sig.estimativa);
             });
 
             tbody.appendChild(row);
         });
         
-        const logArea = document.getElementById('log-display');
-        logArea.innerText = `[SCANNER] Varredura finalizada às ${new Date().toLocaleTimeString()}`;
+        if (!isSilent) {
+            const logArea = document.getElementById('log-display');
+            logArea.innerText = `[SCANNER] Varredura finalizada às ${new Date().toLocaleTimeString()}`;
+        }
         
     } catch (err) {
-        console.error('Erro ao atualizar scanner:', err);
-        const tbody = document.getElementById('scanner-body');
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--loss-red);">Erro na conexão com a Binance. Tente novamente em 1 minuto.</td></tr>';
+        if (!isSilent) {
+            console.error('Erro ao atualizar scanner:', err);
+            const tbody = document.getElementById('scanner-body');
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--loss-red);">Erro na conexão com a Binance.</td></tr>';
+        }
     }
 }
 
@@ -582,6 +704,5 @@ async function updateHistory() {
 updatePortfolio();
 updateScanner();
 setInterval(updatePortfolio, 30000); // 30s para carteira
-// O scanner agora é ativado apenas pelo botão 'SCANEAR AGORA'
-// setInterval(updateScanner, 60000);   // Removido a pedido do usuário
+setInterval(() => updateScanner(true), 10000); // Polling silencioso a cada 10s (Background Watcher)
 setInterval(updateTime, 1000);
