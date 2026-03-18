@@ -1,5 +1,13 @@
 const API_URL = 'http://127.0.0.1:5000/api';
 
+// --- ESTADO DE PROJEÇÕES ---
+let globalProjectionData = { macro: null, local: null };
+let currentProjectionMode = 'macro';
+let activeOrderData = null;
+
+// --- ESTADO DE SINAIS PINADOS (FAVORITOS) ---
+let pinnedSignals = JSON.parse(localStorage.getItem('sentinel_pins') || '[]');
+
 // --- SISTEMA DE ALERTA EM SEGUNDO PLANO (WEB NOTIFICATIONS) ---
 let notificationPermission = false;
 if ("Notification" in window) {
@@ -16,7 +24,7 @@ function sendDesktopNotification(title, message, symbol) {
     if (notificationPermission && document.hidden) {
         new Notification(title, {
             body: message,
-            icon: '/static/img/logo.png' // Fallback se existir
+            icon: '/static/img/logo.png' 
         }).onclick = () => {
             window.focus();
             openChart(symbol);
@@ -24,94 +32,17 @@ function sendDesktopNotification(title, message, symbol) {
     }
 }
 
-// --- CONTAINER DE ALERTAS VISUAIS (SUBSTUTUTO AO TOAST PARA SINAIS) ---
-function showPersistentAlert(sig) {
-    // DESATIVADO: Remoção dos Cards no Dashboard a pedido do usuário
-    /*
-    const container = document.getElementById('alert-stack') || createAlertContainer();
-    const alertId = `alert-${sig.symbol}-${sig.bb_upper}`.replace(/\s+/g, '-');
-    
-    // Evitar duplicatas na tela
-    if (document.getElementById(alertId)) return;
+const notifiedSignals = new Set();
+setInterval(() => notifiedSignals.clear(), 3600000);
 
-    // NOVO FILTRO: Apenas Cards para Score >= 8.5. 
-    // Entre 8.0 e 8.5, emitimos apenas um Toast para não poluir.
-    if (sig.score < 8.5) {
-        if (sig.score >= 8.0) {
-            showToast(`Oportunidade em ${sig.symbol} (Score: ${sig.score})`, 'info');
-        }
-        return;
-    }
+function showPersistentAlert(sig) { return; }
 
-    // LIMITE DE CARDS: Máximo 3 cards na tela. Se houver 3, remove o mais antigo.
-    const currentAlerts = container.querySelectorAll('.alert-card');
-    if (currentAlerts.length >= 3) {
-        currentAlerts[currentAlerts.length - 1].remove();
-    }
-
-    const card = document.createElement('div');
-    card.id = alertId;
-    card.className = `alert-card ${sig.side.toLowerCase()}`;
-    
-    const isShort = sig.side.toLowerCase() === 'short';
-    
-    card.innerHTML = `
-        <div class="alert-card-header" style="border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px; margin-bottom: 8px;">
-            <strong>${isShort ? '🍊 SHORT' : '🚀 LONG'} GOLD!</strong>
-            <button onclick="this.parentElement.parentElement.remove()" style="background:none; border:none; color:white; cursor:pointer; float:right;">✕</button>
-        </div>
-        <div style="font-size: 1.1rem; margin-bottom: 5px;"><strong>${sig.symbol}</strong> <small>(${sig.bb_upper})</small></div>
-        <div style="font-size: 0.85rem; color: #ffd700;">Preço: ${sig.price} | Score: ${sig.score}/10 🏆</div>
-        <div style="margin-top: 10px; display: flex; gap: 5px;">
-            <button class="btn-action pulse-success" style="flex:1; height: 32px; font-size: 0.75rem;" onclick="handleEntry('${sig.symbol}', ${sig.price}, '${sig.side}', ${sig.tp}, ${sig.sl}, '${sig.bb_upper}', '${sig.estimativa}')">ENTRAR AGORA</button>
-            <button class="btn-action" style="flex:0.4; height: 32px; font-size: 0.75rem; background: var(--card-bg);" onclick="openChart('${sig.symbol}')">GRÁFICO</button>
-        </div>
-    `;
-    
-    container.prepend(card);
-    
-    // Auto-remove após 60 segundos
-    setTimeout(() => { if (card && card.parentElement) card.remove(); }, 60000);
-    */
-
-    // Se o score for alto, ainda podemos mostrar um Toast rápido ou apenas Notificação de Desktop
-    if (sig.score >= 8.0) {
-        showToast(`Sinal de ${sig.side}: ${sig.symbol} (Score: ${sig.score})`, sig.score >= 8.5 ? 'gold' : 'info');
-    }
-    
-    // Notificação de Desktop (Segundo Plano) - Mantida para o operador não perder o sinal
-    sendDesktopNotification(
-        `${sig.side.toUpperCase()} GOLD em ${sig.symbol}!`,
-        `Entrada: ${sig.price}. Score: ${sig.score}/10`,
-        sig.symbol
-    );
-}
-
-function createAlertContainer() {
-    const container = document.createElement('div');
-    container.id = 'alert-stack';
-    document.body.appendChild(container);
-    return container;
-}
-
-// --- SISTEMA DE NOTIFICAÇÕES TOAST (INFO RÁPIDA) ---
 function showToast(message, type = 'info') {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
     toast.className = 'toast';
-    
-    const icons = {
-        success: '✅',
-        error: '❌',
-        info: 'ℹ️',
-        gold: '🏆'
-    };
-    
-    toast.innerHTML = `
-        <span class="toast-icon">${icons[type] || '🔔'}</span>
-        <span>${message}</span>
-    `;
-    
+    const icons = { success: '✅', error: '❌', info: 'ℹ️', gold: '🏆' };
+    toast.innerHTML = `<span class="toast-icon">${icons[type] || '🔔'}</span><span>${message}</span>`;
     container.appendChild(toast);
     setTimeout(() => toast.classList.add('show'), 10);
     setTimeout(() => {
@@ -120,589 +51,586 @@ function showToast(message, type = 'info') {
     }, 4000);
 }
 
-// --- FUNÇÃO CLIQUE PARA COPIAR ---
 async function copyText(text, label) {
     try {
         await navigator.clipboard.writeText(text);
         showToast(`${label} copiado: ${text}`, 'success');
-        console.log(`[UI] ${label} copiado para clipboard: ${text}`);
-    } catch (err) {
-        console.error('Falha ao copiar:', err);
-        showToast('Erro ao copiar valor', 'error');
-    }
+    } catch (err) { showToast('Erro ao copiar valor', 'error'); }
 }
 
 function getExplanation(status, side) {
     const isShort = side.toLowerCase() === 'short';
-    
     const mapping = {
-        'TUDO CERTO: SEGURAR': isShort 
-            ? 'Tudo sob controle. O preço deve continuar baixando.' 
-            : 'Tudo sob controle. O preço deve continuar subindo.',
-        
-        'PERIGOSO: SAIR AGORA': isShort
-            ? 'Atenção! O preço deve subir agora. O risco de prejuízo ficou muito alto, melhor sair.'
-            : 'Atenção! O preço deve cair agora. O risco de prejuízo ficou muito alto, melhor sair.',
-        
-        'LUCRO NO BOLSO?': isShort
-            ? 'O preço já baixou bastante. Ele pode voltar a subir a qualquer hora, garanta seu lucro.'
-            : 'O preço já subiu bastante. Ele pode voltar a cair a qualquer hora, garanta seu lucro.',
-        
-        'CALMA: VAI VOLTAR': isShort
-            ? 'O preço subiu demais e está "cansado". Ele deve voltar a baixar em breve, espere.'
-            : 'O preço caiu demais e está "cansado". Ele deve voltar a subir em breve, espere.',
-        
+        'TUDO CERTO: SEGURAR': isShort ? 'Tudo sob controle. O preço deve continuar baixando.' : 'Tudo sob controle. O preço deve continuar subindo.',
+        'PERIGOSO: SAIR AGORA': isShort ? 'Atenção! O preço deve subir agora. O risco de prejuízo ficou muito alto, melhor sair.' : 'Atenção! O preço deve cair agora. O risco de prejuízo ficou muito alto, melhor sair.',
+        'LUCRO NO BOLSO?': isShort ? 'O preço já baixou bastante. Ele pode voltar a subir a qualquer hora, garanta seu lucro.' : 'O preço já subiu bastante. Ele pode voltar a cair a qualquer hora, garanta seu lucro.',
+        'CALMA: VAI VOLTAR': isShort ? 'O preço subiu demais e está "cansado". Ele deve voltar a baixar em breve, espere.' : 'O preço caiu demais e está "cansado". Ele deve voltar a subir em breve, espere.',
         'PROTEÇÃO: NO ZERO': 'Você não perde mais nada aqui. O preço voltou para onde você entrou, proteja seu capital.'
     };
-    
     return mapping[status] || 'Análise tática em processamento...';
 }
 
-// --- LOGICA TRADING VIEW ---
+function togglePin(sinalStr) {
+    const sig = JSON.parse(decodeURIComponent(sinalStr));
+    const index = pinnedSignals.findIndex(p => p.symbol === sig.symbol);
+    if (index === -1) {
+        pinnedSignals.push(sig);
+        showToast(`${sig.symbol} fixado!`, 'success');
+    } else {
+        pinnedSignals.splice(index, 1);
+        showToast(`${sig.symbol} removido!`, 'info');
+    }
+    localStorage.setItem('sentinel_pins', JSON.stringify(pinnedSignals));
+    renderPinnedSignals();
+    updateScanner(true); 
+}
+
+function renderPinnedSignals() {
+    const section = document.getElementById('pinned-section');
+    const tbody = document.getElementById('pinned-body');
+    if (!section || !tbody) return;
+    if (pinnedSignals.length === 0) { section.classList.add('hidden'); return; }
+    section.classList.remove('hidden');
+    tbody.innerHTML = '';
+    pinnedSignals.forEach(sig => {
+        const row = document.createElement('tr');
+        const side = sig.side || (sig.status.includes('SHORT') || sig.status.includes('LARANJA') ? 'Short' : 'Long');
+        const statusClass = side === 'Short' ? 'alert-short' : (sig.status.includes('VETO') ? 'btc-neutro' : 'maduro');
+        const seasonScore = sig.season_score !== undefined ? sig.season_score : '--';
+        const seasonClass = sig.season_trend === 'ALTA' ? 'season-up' : (sig.season_trend === 'BAIXA' ? 'season-down' : '');
+        const seasonEmoji = sig.season_trend === 'ALTA' ? '📈' : (sig.season_trend === 'BAIXA' ? '📉' : '⚖️');
+        row.innerHTML = `
+            <td>${sig.timestamp || '--:--:--'}</td>
+            <td onclick="openChart('${sig.symbol}')" style="cursor: pointer;"><strong>${sig.symbol}</strong><br><small>${sig.bb_upper}</small></td>
+            <td class="copyable" onclick="copyText('${sig.price}', 'Preço')">${sig.price}</td>
+            <td class="copyable" style="color:var(--neon-blue)">${sig.tp}</td>
+            <td class="copyable" style="color:var(--loss-red)">${sig.sl}</td>
+            <td style="text-align:center;">${sig.score}/10</td>
+            <td style="text-align:center;"><span class="season-badge ${seasonClass}">${seasonEmoji} ${seasonScore}</span></td>
+            <td><span class="status-tag ${statusClass}">${sig.status}</span></td>
+            <td><button class="btn-pin active" onclick="togglePin('${encodeURIComponent(JSON.stringify(sig))}')">⭐</button> <button class="btn-action btn-entry" onclick="handleEntry('${sig.symbol}', '${sig.price}', '${side}', '${sig.tp}', '${sig.sl}')">ENTRAR</button> <button class="btn-action pulse-blue" onclick="openAnalysis('${sig.symbol}')">⚡</button></td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
 function openChart(symbol) {
     const modal = document.getElementById('chart-modal');
     document.getElementById('modal-symbol').innerText = symbol;
     modal.style.display = 'flex';
-
     new TradingView.widget({
-        "autosize": true,
-        "symbol": `BINANCE:${symbol}`,
-        "interval": "5",
-        "timezone": "Etc/UTC",
-        "theme": "dark",
-        "style": "1",
-        "locale": "br",
-        "toolbar_bg": "#f1f3f6",
-        "enable_publishing": false,
-        "hide_side_toolbar": false,
-        "allow_symbol_change": true,
-        "studies": [
-            "MAExp@tv-basicstudies", // EMA 9
-            "MAExp@tv-basicstudies", // EMA 20
-            "MAExp@tv-basicstudies", // EMA 200
-            "BollingerBands@tv-basicstudies",
-            "RSI@tv-basicstudies",
-            "AverageTrueRange@tv-basicstudies"
-        ],
-        "container_id": "tradingview-container"
+        "autosize": true, "symbol": `BINANCE:${symbol}`, "interval": "5", "theme": "dark", "style": "1", "locale": "br", "container_id": "tradingview-container",
+        "studies": ["MAExp@tv-basicstudies","MAExp@tv-basicstudies","MAExp@tv-basicstudies","BollingerBands@tv-basicstudies","RSI@tv-basicstudies"]
     });
 }
 
 function closeModal() {
     document.getElementById('chart-modal').style.display = 'none';
-    document.getElementById('tradingview-container').innerHTML = ''; // Limpa o widget
+    document.getElementById('tradingview-container').innerHTML = '';
 }
 
-// Listeners do Modal
 document.getElementById('close-modal').onclick = closeModal;
-window.onclick = (event) => {
-    if (event.target == document.getElementById('chart-modal')) closeModal();
+document.getElementById('close-order-modal').onclick = closeOrderModal;
+window.onclick = (e) => { 
+    if (e.target == document.getElementById('chart-modal')) closeModal(); 
+    if (e.target == document.getElementById('order-modal')) closeOrderModal();
 };
 
-// --- LOGICA DE ACOES (ENTRADA/SAIDA) ---
-// --- ORDENS BINGX ---
-const orderModal = document.getElementById('order-modal');
-const closeOrderBtn = document.getElementById('close-order-modal');
-const confirmOrderBtn = document.getElementById('btn-confirm-order');
-
-let activeOrderData = null;
-
-function handleEntry(symbol, price, side, tp, sl, tf, ttt) {
-    console.log(`[UI] handleEntry disparado para ${symbol}`, { price, side, tp, sl, tf, ttt });
+async function handleEntry(symbol, price, side, tp, sl) {
     const isShort = side.toLowerCase() === 'short';
-    
-    // Fallback caso tp/sl não venham (segurança)
     const finalTp = tp || (isShort ? price * 0.95 : price * 1.05);
     const finalSl = sl || (isShort ? price * 1.10 : price * 0.90);
-
-    activeOrderData = { 
-        symbol, 
-        price, 
-        side: side.toUpperCase(), 
-        tp: parseFloat(finalTp).toFixed(6), 
-        sl: parseFloat(finalSl).toFixed(6),
-        tf: tf || '1h',
-        ttt: ttt || 'N/A'
-    };
-
-    if (!orderModal) {
-        console.error('[FATAL] Elemento order-modal não encontrado no DOM!');
-        alert('Erro interno: Modal de confirmação não encontrado.');
-        return;
-    }
-
+    activeOrderData = { symbol, price, side: side.toUpperCase(), tp: parseFloat(finalTp).toFixed(6), sl: parseFloat(finalSl).toFixed(6) };
     document.getElementById('order-symbol').innerText = symbol;
     document.getElementById('order-side').innerText = activeOrderData.side;
-    document.getElementById('order-side').className = `order-row ${isShort ? 'side-short' : 'side-long'}`;
     document.getElementById('order-entry').innerText = price;
     document.getElementById('order-tp').innerText = activeOrderData.tp;
     document.getElementById('order-sl').innerText = activeOrderData.sl;
-
-    orderModal.style.display = 'flex';
+    document.getElementById('order-modal').style.display = 'flex';
 }
 
-closeOrderBtn.onclick = () => orderModal.style.display = 'none';
+function closeOrderModal() {
+    document.getElementById('order-modal').style.display = 'none';
+    activeOrderData = null;
+}
 
-confirmOrderBtn.onclick = async () => {
+document.getElementById('btn-confirm-order').onclick = async function() {
+    if (!activeOrderData) return;
     const margin = document.getElementById('order-margin').value;
-    confirmOrderBtn.disabled = true;
-    confirmOrderBtn.innerText = 'ENVIANDO...';
-
+    const isScalp = document.getElementById('order-is-scalp')?.checked || false;
+    this.disabled = true;
+    this.innerText = 'EXECUTANDO...';
+    
     try {
-        const res = await fetch(`${API_URL}/bingx/order`, {
+        const response = await fetch(`${API_URL}/bingx/order`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...activeOrderData, margin })
+            body: JSON.stringify({ ...activeOrderData, margin: parseFloat(margin), is_scalp: isScalp })
         });
-        const data = await res.json();
-
-        if (data.status === 'success') {
-            showToast(`Ordem de ${activeOrderData.side} enviada para ${activeOrderData.symbol}!`, 'success');
-            orderModal.style.display = 'none';
-            // Após sucesso na BingX, registra no Ledger local com TF e TTT
-            await fetch(`${API_URL}/entry`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    symbol: activeOrderData.symbol, 
-                    side: activeOrderData.side, 
-                    price: activeOrderData.price,
-                    tf: activeOrderData.tf,
-                    ttt: activeOrderData.ttt
-                })
-            });
+        const result = await response.json();
+        if (result.status === 'success') {
+            showToast('ORDEM EXECUTADA!', 'success');
+            closeOrderModal();
             updatePortfolio();
+            updateBots();
         } else {
-            showToast(`Erro na BingX: ${data.message}`, 'error');
+            showToast(`ERRO: ${result.message}`, 'error');
         }
     } catch (err) {
-        showToast('Erro ao conectar com o Servidor.', 'error');
+        showToast('Erro ao conectar com o servidor', 'error');
     } finally {
-        confirmOrderBtn.disabled = false;
-        confirmOrderBtn.innerText = 'EXECUTAR NA BINGX';
+        this.disabled = false;
+        this.innerText = 'EXECUTAR NA BINGX';
     }
 };
 
 async function openAnalysis(symbol) {
     const drawer = document.getElementById('analysis-drawer');
     const grid = document.getElementById('analysis-grid');
-    const symbolTitle = document.getElementById('drawer-symbol');
-    const verdictValue = document.getElementById('verdict-value');
-    const verdictReason = document.getElementById('verdict-reason');
-    const confValue = document.getElementById('conf-value');
-    const confFill = document.getElementById('conf-fill');
-
-    symbolTitle.innerText = `RAIO-X: ${symbol}`;
-    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 20px;">Iniciando varredura multitempo...</div>';
-    verdictValue.innerText = '---';
-    verdictReason.innerText = 'Consultando 6 tempos gráficos na API...';
-    confFill.style.width = '0%';
-    confValue.innerText = '0%';
-    
+    document.getElementById('drawer-symbol').innerText = `RAIO-X: ${symbol}`;
+    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center;">Analisando...</div>';
     drawer.classList.add('open');
-
     try {
         const response = await fetch(`${API_URL}/analyze/${symbol}`);
         const data = await response.json();
-        
-        if (data.status === 'error') throw new Error(data.message);
-
-        // Badge do BTC
         const btcClass = data.btc_status === 'ALTA' ? 'btc-alta' : (data.btc_status === 'BAIXA' ? 'btc-baixa' : 'btc-neutro');
-        symbolTitle.innerHTML = `${symbol} <span class="btc-badge ${btcClass}">BTC: ${data.btc_status}</span>`;
-
-        // Renderizar Grid de Timeframes
+        document.getElementById('drawer-symbol').innerHTML = `${symbol} <span class="btc-badge ${btcClass}">BTC: ${data.btc_status}</span>`;
         grid.innerHTML = '';
-        const tfs = ['1m', '5m', '15m', '30m', '1h', '4h'];
-        tfs.forEach(tf => {
-            const info = data.timeframes[tf];
-            if (!info) return; // Proteção contra TF ausente
-
+        ['1m', '5m', '15m', '30m', '1h', '4h'].forEach(tf => {
+            const info = data.timeframes[tf]; if (!info) return;
             const block = document.createElement('div');
             block.className = 'tf-block';
-            
             const color = info.trend === 'ALTA' ? 'var(--win-green)' : (info.trend === 'BAIXA' ? 'var(--loss-red)' : 'rgba(255,255,255,0.4)');
-            const volStatus = info.volume || 'NORMAL';
-            const volClass = volStatus === 'EXAUSTÃO' ? 'vol-exaustao' : (volStatus === 'FORTE' ? 'vol-forte' : '');
-            const trendText = info.trend || 'N/A';
-            const rsiVal = info.rsi !== undefined ? info.rsi : '??';
-            const candleText = info.candle || '';
-
-            block.innerHTML = `
-                <span class="tf-label">${tf}</span>
-                <span class="tf-status" style="color: ${color}">${trendText}</span>
-                <span class="tf-rsi">RSI: ${rsiVal} | ${candleText}</span>
-                <span class="vol-badge ${volClass}">${volStatus}</span>
-            `;
+            block.innerHTML = `<span class="tf-label">${tf}</span><span style="color:${color}">${info.trend}</span><small>RSI:${info.rsi}</small><span class="vol-badge">${info.volume}</span>`;
             grid.appendChild(block);
         });
-
-        // Renderizar Veredito
-        verdictValue.innerText = data.verdict || 'INDETERMINADO';
-        verdictReason.innerText = data.reason || 'Sem detalhes técnicos.';
-        confFill.style.width = `${data.confidence || 0}%`;
-        confValue.innerText = `${data.confidence || 0}%`;
-
-    } catch (err) {
-        console.error('[ERRO RAIO-X]', err);
-        grid.innerHTML = `<div style="grid-column: 1/-1; color: var(--loss-red);">Erro na análise: ${err.message}</div>`;
-    }
+        document.getElementById('verdict-value').innerText = data.verdict;
+        document.getElementById('verdict-reason').innerText = data.reason;
+        document.getElementById('conf-fill').style.width = `${data.confidence || 0}%`;
+        loadSeasonality(symbol);
+        loadProjection(symbol);
+    } catch (err) { grid.innerHTML = `Erro: ${err.message}`; }
 }
 
-function closeAnalysis() {
-    document.getElementById('analysis-drawer').classList.remove('open');
-}
-
-async function handleRestore(symbol, openedAt) {
-    if (!confirm(`Deseja restaurar ${symbol} para a carteira ativa?`)) return;
+async function loadProjection(symbol) {
+    const container = document.getElementById('projection-container');
     try {
-        const response = await fetch('/api/history/restore', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ symbol, opened_at: openedAt })
-        });
-        const result = await response.json();
-        if (result.status === 'success') {
-            updatePortfolio();
-            updateHistory();
-        } else {
-            alert('Erro ao restaurar: ' + result.message);
-        }
-    } catch (error) {
-        console.error('Erro ao restaurar:', error);
-    }
-}
+        const res = await fetch(`${API_URL}/projection/${symbol}`);
+        const data = await res.json();
+        
+        if (data.error) throw new Error(data.error);
 
-async function handleExit(symbol) {
-    if (!confirm(`Deseja realmente FECHAR a posição de ${symbol} e mover para o histórico?`)) return;
-    
-    try {
-        const response = await fetch(`${API_URL}/exit`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ symbol })
-        });
-        const result = await response.json();
-        if (result.status === 'success') {
-            showToast(`Posição de ${symbol} encerrada com sucesso.`, 'info');
-            updatePortfolio();
-        }
+        container.innerHTML = `
+            <div class="projection-header">
+                <span>ABERTURA: <strong>${data.open}</strong></span>
+                <span>ATR(14): <strong>${data.atr}</strong></span>
+            </div>
+            <div class="targets-wrapper">
+                <div class="target-side bull">
+                    <div class="side-label">ALVOS DE ALTA (BULL)</div>
+                    ${data.bull_targets.map(t => `
+                        <div class="target-row ${data.current > t.val ? 'hit' : ''}">
+                            <span class="t-mult">${t.multiple}x</span>
+                            <span class="t-val">${t.val}</span>
+                            <span class="t-prob">${t.prob}%</span>
+                        </div>
+                    `).join('')}
+                </div>
+                <div class="target-side bear">
+                    <div class="side-label">ALVOS DE BAIXA (BEAR)</div>
+                    ${data.bear_targets.map(t => `
+                        <div class="target-row ${data.current < t.val ? 'hit' : ''}">
+                            <span class="t-mult">${t.multiple}x</span>
+                            <span class="t-val">${t.val}</span>
+                            <span class="t-prob">${t.prob}%</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            <div class="projection-footer">
+                * Probabilidades baseadas em desvios de volatilidade e bias do dia.
+            </div>
+        `;
     } catch (err) {
-        console.error('Erro na saída:', err);
+        container.innerHTML = `<div style="color:var(--loss-red); font-size: 0.7rem; text-align: center;">Erro: ${err.message}</div>`;
     }
 }
 
 async function updatePortfolio() {
     try {
-        const response = await fetch(`${API_URL}/monitor`);
-        const data = await response.json();
-        
-        let positions = [];
-        let macroStatus = "NEUTRO";
-
-        if (data && data.positions) {
-            positions = data.positions;
-            macroStatus = data.macro;
-        } else if (Array.isArray(data)) {
-            positions = data;
-        }
-
-        const grid = document.getElementById('portfolio-grid');
-        grid.innerHTML = '';
-
-        if (!Array.isArray(positions)) {
-            console.error('[UI] Monitor recebeu dado inválido:', positions);
-            grid.innerHTML = `<div class="card" style="text-align:center; color: var(--loss-red);">Erro ao carregar posições: ${positions.error || 'Resposta inválida'}</div>`;
-            return;
-        }
-
-        if (positions.length === 0) {
-            grid.innerHTML = '<div class="card" style="text-align:center;">Nenhuma posição ativa no Ledger.</div>';
-            return;
-        }
-
-        let totalPnl = 0;
+        const res = await fetch(`${API_URL}/monitor`);
+        const data = await res.json();
+        const tbody = document.getElementById('portfolio-body');
+        tbody.innerHTML = '';
+        const positions = data.positions || [];
         positions.forEach(pos => {
-            const card = document.createElement('div');
-            card.className = 'card';
-            
             const pnlValue = parseFloat(pos.pnl) || 0;
-            totalPnl += pnlValue;
-            
-            const isProfit = pnlValue >= 0;
-            const pnlClass = isProfit ? 'green' : 'red';
-            const explanation = getExplanation(pos.status, pos.side);
-            
-            card.innerHTML = `
-                <div class="card-header">
-                    <span class="symbol-name" onclick="openChart('${pos.symbol}')" style="cursor: pointer;">${pos.symbol} <small style="font-size: 0.6rem; color: #94a3b8;">(${pos.side} - ${pos.tf})</small></span>
-                    <span class="pnl-badge ${pnlClass}">${isProfit ? '+' : ''}${pnlValue.toFixed(2)}%</span>
-                </div>
-                <div class="card-body">
-                    <div class="data-item">
-                        <span class="label">ABERTURA</span>
-                        <span class="value" style="font-size: 0.7rem;">${pos.opened_at}</span>
-                    </div>
-                    <div class="data-item">
-                        <span class="label">ENTRADA / ATUAL</span>
-                        <span class="value">${pos.entry} / ${pos.current}</span>
-                    </div>
-                    <div class="data-item">
-                        <span class="label">EXPECTATIVA (TTT)</span>
-                        <span class="value expectancy-ttt">${pos.ttt}</span>
-                    </div>
-                    <div class="data-item">
-                        <span class="label">STATUS / RSI</span>
-                        <div class="status-container" onclick="event.stopPropagation()">
-                            <span class="value status-value">${pos.status} | ${pos.rsi4h}</span>
-                            <div class="tooltip">${explanation}</div>
-                        </div>
-                    </div>
-                    <div class="card-footer" style="display: flex; gap: 8px; margin-top: 15px; grid-column: span 2;">
-                        <button class="btn-action pulse-blue" style="flex: 0.3; background: var(--neon-blue); height: 40px;" onclick="event.stopPropagation(); openAnalysis('${pos.symbol}')">⚡ IA</button>
-                        <button class="btn-action btn-exit" style="flex: 1; margin-top: 0; height: 40px;" onclick="event.stopPropagation(); handleExit('${pos.symbol}')">FECHAR POSIÇÃO</button>
-                    </div>
-                </div>
-            `;
-            grid.appendChild(card);
+            const row = document.createElement('tr');
+            row.innerHTML = `<td><strong>${pos.symbol}</strong></td><td>${pos.opened_at}</td><td>${pos.entry}/${pos.current}</td><td>${pos.ttt}</td><td><span class="${pnlValue>=0?'green':'red'}">${pnlValue.toFixed(2)}%</span></td><td>${pos.tp}/${pos.sl}</td><td>${pos.status}</td><td><button class="btn-action pulse-blue" onclick="openAnalysis('${pos.symbol}')">IA</button></td>`;
+            tbody.appendChild(row);
         });
-
-        // ATUALIZAR BARRA DE PERFORMANCE GLOBAL
-        const activeTrades = positions.length;
-        
-        document.getElementById('global-trades').innerText = activeTrades;
-        const pnlEl = document.getElementById('global-pnl');
-        pnlEl.innerText = `${totalPnl > 0 ? '+' : ''}${totalPnl.toFixed(2)}%`;
-        pnlEl.className = `perf-value ${totalPnl >= 0 ? 'green' : 'red'}`;
-
-        // Determinar Tendência Global (vinda do Servidor)
-        const trendEl = document.getElementById('global-trend');
-        trendEl.innerText = macroStatus;
-        if (macroStatus.includes('ALTSEASON')) trendEl.style.color = 'var(--win-green)';
-        else if (macroStatus.includes('DOMINANTE')) trendEl.style.color = 'var(--neon-orange)';
-        else trendEl.style.color = 'white';
-
-    } catch (err) {
-        console.error('Erro ao atualizar carteira:', err);
-    }
+        document.getElementById('global-trades').innerText = positions.length;
+        document.getElementById('global-pnl').innerText = `${(data.total_pnl || 0).toFixed(2)}%`;
+        document.getElementById('global-trend').innerText = data.macro || 'NEUTRO';
+    } catch (err) {}
 }
 
-async function manualScan() {
-    const btn = document.getElementById('btn-scan');
-    const tbody = document.getElementById('scanner-body');
-    const logArea = document.getElementById('log-display');
-    const progressContainer = document.getElementById('progress-container');
-    const progressBar = document.getElementById('progress-bar');
-
-    btn.disabled = true;
-    btn.innerText = 'SCANEANDO...';
-    progressContainer.classList.remove('progress-hidden');
-    progressBar.style.width = '0%';
-    
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--neon-orange);">Executando varredura multithread em +400 moedas...</td></tr>';
-    logArea.innerText = `[SCANNER] Iniciando varredura manual em ${new Date().toLocaleTimeString()}...`;
-    showToast('Iniciando varredura em 400+ moedas...', 'info');
-
-    // Polling de sinais parciais para não deixar a tela vazia
-    const pollInterval = setInterval(() => {
-        updateScanner(true); // true = modo silencioso (sem limpar tela)
-    }, 3000);
-
-    // Animação de progresso (estimativa)
-    let progress = 0;
-    const progressInterval = setInterval(() => {
-        if (progress < 95) {
-            progress += (95 - progress) * 0.05;
-            progressBar.style.width = `${progress}%`;
-        }
-    }, 1000);
-
-    try {
-        await updateScanner();
-        progressBar.style.width = '100%';
-        logArea.innerText = `[SCANNER] Varredura finalizada com sucesso!`;
-        showToast('Scanner finalizado. Novas oportunidades disponíveis!', 'success');
-    } catch (err) {
-        logArea.innerText = `[SCANNER] Falha na varredura.`;
-    } finally {
-        clearInterval(pollInterval);
-        clearInterval(progressInterval);
-        setTimeout(() => {
-            progressContainer.classList.add('progress-hidden');
-            btn.disabled = false;
-            btn.innerText = 'SCANEAR AGORA';
-        }, 1500);
-    }
-}
-
-let scannerSortOrder = 'desc'; // 'desc' ou 'asc'
-
-function toggleScannerSort() {
-    scannerSortOrder = scannerSortOrder === 'desc' ? 'asc' : 'desc';
-    const scoreHeader = document.getElementById('header-score');
-    if (scoreHeader) {
-        scoreHeader.innerText = `Score ${scannerSortOrder === 'desc' ? '▼' : '▲'}`;
-    }
-    updateScanner();
-}
+let scanAbortController = null;
+let scannerSortOrder = 'desc';
 
 async function updateScanner(isSilent = false) {
     try {
         const endpoint = isSilent ? 'latest_signals' : 'scanner';
-        const response = await fetch(`${API_URL}/${endpoint}`);
+        const options = scanAbortController ? { signal: scanAbortController.signal } : {};
+        const response = await fetch(`${API_URL}/${endpoint}`, options);
         let signals = await response.json();
-        
-        if (isSilent && signals.length === 0) return; // Não limpa nada se for silent e vazio
-
-        // Aplicar ordenação
-        signals.sort((a, b) => {
-            const scoreA = parseFloat(a.score) || 0;
-            const scoreB = parseFloat(b.score) || 0;
-            return scannerSortOrder === 'desc' ? scoreB - scoreA : scoreA - scoreB;
-        });
-
+        if (isSilent && signals.length === 0) return;
+        signals.sort((a,b) => scannerSortOrder === 'desc' ? b.score - a.score : a.score - b.score);
         const tbody = document.getElementById('scanner-body');
-        
-        // Se houver sinais novos e houver mudança na contagem, atualiza a tabela
-        // Ou se não for silent (que é quando a varredura termina)
-        const currentRows = tbody.querySelectorAll('tr').length;
-        if (isSilent && signals.length <= (currentRows > 1 ? currentRows : 0) && currentRows > 1) {
-            return; // Evita re-renderizar se não houver novidades
-        }
-
-        tbody.innerHTML = '';
-
-        if (signals.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Varredura completa. Sem sinais no momento.</td></tr>';
-            return;
-        }
-
+        if (!isSilent) tbody.innerHTML = '';
         signals.forEach(sig => {
-            const row = document.createElement('tr');
-            row.style.cursor = 'pointer';
-            
-            // Disparar Alerta Visual se for sinal novo e de confiança (somente no polling silencioso)
-            if (isSilent && !sig.status.includes('VETO') && sig.score >= 8) {
-                showPersistentAlert(sig);
-            }
-
-            // Destaque para Sinais de Ouro e Veto
-            if (sig.status.includes('VETO')) {
-                row.style.opacity = '0.6';
-            } else if (parseFloat(sig.score) >= 8.5) {
-                row.classList.add('gold-signal');
-            }
-            
             const side = sig.side || (sig.status.includes('SHORT') || sig.status.includes('LARANJA') ? 'Short' : 'Long');
             const statusClass = side === 'Short' ? 'alert-short' : (sig.status.includes('VETO') ? 'btc-neutro' : 'maduro');
-
+            const isPinned = pinnedSignals.some(p => p.symbol === sig.symbol);
+            const seasonScore = sig.season_score !== undefined ? sig.season_score : '--';
+            const seasonClass = sig.season_trend === 'ALTA' ? 'season-up' : (sig.season_trend === 'BAIXA' ? 'season-down' : '');
+            const seasonEmoji = sig.season_trend === 'ALTA' ? '📈' : (sig.season_trend === 'BAIXA' ? '📉' : '⚖️');
+            const row = document.createElement('tr');
             row.innerHTML = `
-                <td onclick="openChart('${sig.symbol}')" style="cursor: pointer;"><strong>${sig.symbol}</strong><br><small style="color:var(--text-dim);">${sig.bb_upper}</small></td>
-                <td class="copyable" onclick="event.stopPropagation(); copyText('${sig.price}', 'Preço')">${sig.price}</td>
-                <td class="copyable" style="color: var(--neon-blue);" onclick="event.stopPropagation(); copyText('${sig.tp}', 'TP')">${sig.tp}</td>
-                <td class="copyable" style="color: var(--loss-red);" onclick="event.stopPropagation(); copyText('${sig.sl}', 'SL')">${sig.sl}</td>
-                <td style="text-align:center;">${sig.score}/10</td>
+                <td>${sig.timestamp}</td>
+                <td onclick="openChart('${sig.symbol}')"><strong>${sig.symbol}</strong><br><small>${sig.bb_upper}</small></td>
+                <td class="copyable" onclick="copyText('${sig.price}','Preço')">${sig.price}</td>
+                <td style="color:var(--neon-blue)">${sig.tp}</td>
+                <td style="color:var(--loss-red)">${sig.sl}</td>
+                <td style="text-align:center">${sig.score}/10</td>
+                <td style="text-align:center"><span class="season-badge ${seasonClass}">${seasonEmoji} ${seasonScore}</span></td>
                 <td><span class="status-tag ${statusClass}">${sig.status}</span></td>
-                <td>
-                    <div style="display: flex; gap: 4px;">
-                        <button class="btn-action btn-entry pulse-success btn-entry-action">ENTRAR</button>
-                        <button class="btn-action pulse-blue btn-raiox-action" 
-                                style="background: var(--neon-blue); padding: 8px 12px; min-width: 40px;" 
-                                onclick="event.stopPropagation(); console.log('[UI] Abrindo Raio-X para ${sig.symbol}'); openAnalysis('${sig.symbol}')">⚡</button>
-                    </div>
-                </td>
+                <td><button class="btn-pin ${isPinned?'active':''}" onclick="togglePin('${encodeURIComponent(JSON.stringify(sig))}')">⭐</button> <button class="btn-action btn-entry" onclick="handleEntry('${sig.symbol}','${sig.price}','${side}','${sig.tp}','${sig.sl}')">ENTRAR</button> <button class="btn-action pulse-blue" onclick="openAnalysis('${sig.symbol}')">⚡</button></td>
             `;
-
-            const bntEntry = row.querySelector('.btn-entry-action');
-            bntEntry.addEventListener('click', (e) => {
-                e.stopPropagation();
-                handleEntry(sig.symbol, sig.price, side, sig.tp, sig.sl, sig.bb_upper, sig.estimativa);
-            });
-
-            tbody.appendChild(row);
+            const existing = Array.from(tbody.children).find(r => r.cells[1].innerText.includes(sig.symbol));
+            if (existing) existing.replaceWith(row); else tbody.appendChild(row);
         });
-        
-        if (!isSilent) {
-            const logArea = document.getElementById('log-display');
-            logArea.innerText = `[SCANNER] Varredura finalizada às ${new Date().toLocaleTimeString()}`;
-        }
-        
-    } catch (err) {
-        if (!isSilent) {
-            console.error('Erro ao atualizar scanner:', err);
-            const tbody = document.getElementById('scanner-body');
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--loss-red);">Erro na conexão com a Binance.</td></tr>';
-        }
-    }
+        document.getElementById('log-display').innerText = `[SCANNER] Atualizado em ${new Date().toLocaleTimeString()}`;
+    } catch (err) { if (err.name !== 'AbortError' && !isSilent) showToast('Erro no scanner', 'error'); }
 }
 
-function updateTime() {
-    const now = new Date();
-    document.getElementById('time-display').innerText = now.toLocaleTimeString();
-}
-
-// --- LOGICA DE NAVEGACAO (TABS) ---
-function switchTab(tabId) {
-    // Esconde todos os conteúdos e remove active das abas
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    document.querySelectorAll('.tab-link').forEach(l => l.classList.remove('active'));
-    
-    // Mostra o selecionado
-    document.getElementById(tabId).classList.add('active');
-    
-    // Ativa o botão correto (busca pelo onclick que contém o tabId)
-    document.querySelector(`.tab-link[onclick*="${tabId}"]`).classList.add('active');
-    
-    // Se for a aba de histórico, carrega os dados
-    if (tabId === 'history-section') {
-        updateHistory();
-    }
-}
-
-async function updateHistory() {
+async function manualScan() {
+    const btnScan = document.getElementById('btn-scan');
+    const btnStop = document.getElementById('btn-stop');
+    const progressContainer = document.getElementById('progress-container');
+    const progressBar = document.getElementById('progress-bar');
+    if (scanAbortController) scanAbortController.abort();
+    scanAbortController = new AbortController();
+    btnScan.classList.add('hidden');
+    btnStop.classList.remove('hidden');
+    progressContainer.classList.remove('progress-hidden');
+    progressBar.style.width = '0%';
+    const pollInterval = setInterval(() => updateScanner(true), 3000);
+    let progress = 0;
+    const progressInterval = setInterval(() => { if (progress < 95) { progress += (95 - progress) * 0.05; progressBar.style.width = `${progress}%`; } }, 1000);
     try {
-        const response = await fetch(`${API_URL}/history`);
-        const history = await response.json();
-        
-        const tbody = document.getElementById('history-body');
-        tbody.innerHTML = '';
+        await updateScanner(false);
+        progressBar.style.width = '100%';
+        showToast('Scanner finalizado!', 'success');
+    } catch (err) { if (err.name === 'AbortError') showToast('Scanner parado.', 'info'); }
+    finally { clearInterval(pollInterval); clearInterval(progressInterval); stopScan(); }
+}
 
-        if (history.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">Nenhum registro no histórico.</td></tr>';
+function stopScan() {
+    if (scanAbortController) { scanAbortController.abort(); scanAbortController = null; }
+    document.getElementById('btn-scan').classList.remove('hidden');
+    document.getElementById('btn-stop').classList.add('hidden');
+    setTimeout(() => document.getElementById('progress-container').classList.add('progress-hidden'), 1500);
+}
+
+async function loadSeasonality(symbol) {
+    const infoText = document.getElementById('season-info-text');
+    try {
+        const res = await fetch(`${API_URL}/seasonality/${symbol}`);
+        const data = await res.json();
+        drawSeasonalChart(data.projection);
+        if (infoText) infoText.innerHTML = `Estatística: <span class="${data.trend==='ALTA'?'green':'red'}"><strong>${data.trend}</strong></span> (Score:${data.score})`;
+    } catch (err) {}
+}
+
+function drawSeasonalChart(projection) {
+    const canvas = document.getElementById('seasonal-canvas'); if (!canvas) return;
+    const ctx = canvas.getContext('2d'); const width = canvas.width = canvas.parentElement.clientWidth; const height = canvas.height = canvas.parentElement.clientHeight;
+    ctx.clearRect(0,0,width,height);
+    
+    // Na miniatura do Raio-X, usamos a amplitude total para preencher o espaço
+    const v = projection.map(p => p.multiplier); 
+    const min = Math.min(...v); 
+    const max = Math.max(...v); 
+    const r = max - min || 1;
+    
+    ctx.beginPath(); ctx.lineWidth = 2; ctx.strokeStyle = '#FF8C00';
+    projection.forEach((p, i) => {
+        const x = (i / (projection.length - 1)) * width;
+        const y = height - 10 - ((p.multiplier - min) / r) * (height - 20);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        if (i === 15) { 
+            ctx.save(); ctx.setLineDash([5,5]); ctx.strokeStyle='rgba(255,255,255,0.3)'; 
+            ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,height); ctx.stroke(); ctx.restore(); 
+        }
+    });
+    ctx.stroke();
+}
+
+document.getElementById('btn-toggle-season-chart').onclick = async function() {
+    const symbol = document.getElementById('modal-symbol').innerText;
+    const canvas = document.getElementById('seasonal-overlay-canvas');
+    const statsBox = document.getElementById('seasonality-stats-box');
+    const modeSelector = document.getElementById('projection-mode-selector');
+    
+    if (canvas.style.display === 'block') { 
+        canvas.style.display = 'none'; 
+        if (statsBox) statsBox.classList.add('hidden');
+        if (modeSelector) modeSelector.classList.add('hidden');
+        this.innerText = '🗺️ ATIVAR PROJEÇÕES'; 
+        return; 
+    }
+    
+    this.innerText = '⌛...';
+    try {
+        const [resSea, resPrice, resProj] = await Promise.all([
+            fetch(`${API_URL}/seasonality/${symbol}`),
+            fetch(`${API_URL}/analyze/${symbol}`),
+            fetch(`${API_URL}/projection/${symbol}`)
+        ]);
+        
+        if (!resSea.ok || !resPrice.ok || !resProj.ok) {
+            throw new Error(`Servidor respondeu com erro (${resSea.status}/${resPrice.status}/${resProj.status})`);
+        }
+        
+        const dataSea = await resSea.json();
+        const priceData = await resPrice.json();
+        const projectionData = await resProj.json();
+
+        globalProjectionData.macro = dataSea;
+        globalProjectionData.local = projectionData;
+        globalProjectionData.priceInfo = priceData;
+        
+        canvas.style.display = 'block';
+        if (modeSelector) modeSelector.classList.remove('hidden');
+        
+        updateProjectionView();
+        this.innerText = '🗺️ DESATIVAR';
+    } catch (err) { 
+        console.error(err);
+        showToast('Erro ao carregar projeções', 'error'); 
+        this.innerText = '🗺️ TENTAR NOVAMENTE';
+    }
+};
+
+function updateProjectionView() {
+    const canvas = document.getElementById('seasonal-overlay-canvas');
+    const statsBox = document.getElementById('seasonality-stats-box');
+    const headerText = document.getElementById('stats-header-text');
+    
+    if (!globalProjectionData.macro || !globalProjectionData.local) return;
+
+    if (currentProjectionMode === 'macro') {
+        headerText.innerText = "ESTRADA (SAZONALIDADE)";
+        document.getElementById('stats-conf').innerText = `${globalProjectionData.priceInfo.confidence}%`;
+        document.getElementById('stats-roi').innerText = `${((globalProjectionData.macro.projection[globalProjectionData.macro.projection.length-1].multiplier - 1) * 100).toFixed(2)}%`;
+        document.getElementById('stats-trend').innerText = globalProjectionData.macro.trend;
+        document.getElementById('stats-status').innerText = globalProjectionData.macro.score > 0 ? "MARÉ ALTA" : "MARÉ BAIXA";
+        document.getElementById('stats-status').style.color = globalProjectionData.macro.score > 0 ? 'var(--win-green)' : 'var(--loss-red)';
+        
+        drawSeasonalOnOverlay(globalProjectionData.macro.projection);
+    } else {
+        headerText.innerText = "TRÁFEGO (TECNICO/ATR)";
+        const p = globalProjectionData.local;
+        document.getElementById('stats-conf').innerText = `${p.bias}`;
+        document.getElementById('stats-roi').innerText = `ATR: ${p.atr}`;
+        document.getElementById('stats-trend').innerText = p.bias === 'BULL' ? 'LONG' : 'SHORT';
+        document.getElementById('stats-status').innerText = "CALCULADO";
+        document.getElementById('stats-status').style.color = 'var(--neon-blue)';
+        
+        drawTradePathOnOverlay(p.trade_path, p.bias);
+    }
+}
+
+document.getElementById('btn-mode-macro').onclick = () => {
+    currentProjectionMode = 'macro';
+    document.getElementById('btn-mode-macro').classList.add('active');
+    document.getElementById('btn-mode-local').classList.remove('active');
+    updateProjectionView();
+};
+
+document.getElementById('btn-mode-local').onclick = () => {
+    currentProjectionMode = 'local';
+    document.getElementById('btn-mode-local').classList.add('active');
+    document.getElementById('btn-mode-macro').classList.remove('active');
+    updateProjectionView();
+};
+
+function drawSeasonalOnOverlay(p) {
+    const c = document.getElementById('seasonal-overlay-canvas'); 
+    const ctx = c.getContext('2d');
+    const w = c.width = c.parentElement.clientWidth; 
+    const h = c.height = c.parentElement.clientHeight;
+    ctx.clearRect(0,0,w,h);
+
+    const m = p.map(x => x.multiplier);
+    const minM = Math.min(...m);
+    const maxM = Math.max(...m);
+    const rangeM = (maxM - minM) || 0.001;
+
+    // Estilo Ghost Path
+    ctx.beginPath(); 
+    ctx.lineWidth = 5; 
+    ctx.strokeStyle = 'rgba(255, 140, 0, 0.45)'; 
+    ctx.setLineDash([12, 6]);
+
+    p.forEach((x, i) => {
+        // X: Posicionamos o ponto 15 (AGORA) em 60% da largura da tela (onde as velas costumam terminar)
+        let xCoord;
+        const nowX = w * 0.6;
+        if (i <= 15) {
+            xCoord = (i / 15) * nowX;
+        } else {
+            xCoord = nowX + ((i - 15) / (p.length - 1 - 15)) * (w - nowX);
+        }
+        
+        // Y: Centralizado verticalmente h*0.45 para alinhar com o corpo do TradingView
+        const yOffset = (x.multiplier - 1.0) / rangeM * (h * 0.4);
+        const yCoord = (h * 0.45) - yOffset;
+        
+        if (i === 0) ctx.moveTo(xCoord, yCoord); 
+        else ctx.lineTo(xCoord, yCoord);
+
+        // Marca o "Hoje" (Agora) com uma linha de referência
+        if (i === 15) {
+            ctx.save();
+            ctx.setLineDash([]);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(xCoord, 0); ctx.lineTo(xCoord, h); ctx.stroke();
+            
+            // Texto indicativo
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.font = 'bold 12px Orbitron, sans-serif';
+            ctx.fillText("AGORA", xCoord + 5, 20);
+            ctx.restore();
+        }
+    });
+    ctx.stroke();
+
+    // Efeito de brilho neon
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = 'rgba(255, 140, 0, 0.7)';
+    
+    // Adiciona labels de ROI projetado no final da linha
+    const lastP = p[p.length - 1];
+    const finalROI = ((lastP.multiplier - 1) * 100).toFixed(2);
+    const lastX = w - 160;
+    const lastY = (h * 0.45) - ((lastP.multiplier - 1.0) / rangeM * (h * 0.4));
+    
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = finalROI >= 0 ? 'var(--win-green)' : 'var(--loss-red)';
+    ctx.font = 'bold 12px Orbitron, sans-serif';
+    ctx.fillText(`PROJ. 30D (MACRO): ${finalROI}%`, lastX, lastY - 10);
+}
+
+function drawTradePathOnOverlay(path, bias) {
+    const c = document.getElementById('seasonal-overlay-canvas'); 
+    const ctx = c.getContext('2d');
+    const w = c.width = c.parentElement.clientWidth; 
+    const h = c.height = c.parentElement.clientHeight;
+    ctx.clearRect(0,0,w,h);
+
+    const values = path.map(x => x.val);
+    const minV = Math.min(...values);
+    const maxV = Math.max(...values);
+    const rangeV = (maxV - minV) || 1;
+
+    ctx.beginPath(); 
+    ctx.lineWidth = 4; 
+    ctx.strokeStyle = bias === 'BULL' ? '#00eaff' : '#ff4d00'; // Azul Neon ou Laranja Neon
+    ctx.setLineDash([10, 5]);
+
+    const nowX = w * 0.6;
+    path.forEach((p, i) => {
+        const x = nowX + (i / (path.length - 1)) * (w - nowX - 20);
+        // Centralizado no h*0.45 (preço atual) e variando proporcionalmente ao ATR
+        const y = (h * 0.45) - ((p.val - path[0].val) / rangeV) * (h * 0.3);
+        
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+
+        if (i === 0) {
+            // Marca o Ponto de Entrada (Agora)
+            ctx.save();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#fff';
+            ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI*2); ctx.fill();
+            ctx.font = 'bold 10px Inter';
+            ctx.fillText("ENTRADA", x + 10, y + 5);
+            ctx.restore();
+        }
+    });
+    ctx.stroke();
+
+    // Brilho Neon
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = bias === 'BULL' ? 'rgba(0, 234, 255, 0.6)' : 'rgba(255, 77, 0, 0.6)';
+    ctx.stroke();
+}
+
+updateTime();
+setInterval(() => { updatePortfolio(); updateScanner(true); updateBots(); }, 30000);
+function updateTime() { document.getElementById('time-display').innerText = new Date().toLocaleTimeString(); }
+setInterval(updateTime, 1000);
+
+// --- SCALP BOTS ---
+async function updateBots() {
+    try {
+        const res = await fetch(`${API_URL}/bot/status`);
+        const bots = await res.json();
+        const section = document.getElementById('scalp-bots-section');
+        const tbody = document.getElementById('scalp-bots-body');
+        
+        if (bots.length === 0) {
+            if(section) section.classList.add('hidden');
             return;
         }
-
-        history.forEach(trade => {
-            const row = document.createElement('tr');
-            const isWin = trade.result.includes('WIN');
-            const resultTag = isWin ? 'maduro' : 'alert-short'; // Reutilizando cores
-            const pnlClass = trade.pnl.includes('+') ? 'green' : 'red';
-
-            row.innerHTML = `
-                <td style="font-size: 0.75rem;">${trade.opened_at}</td>
-                <td style="font-size: 0.75rem;">${trade.closed_at}</td>
-                <td><strong>${trade.symbol}</strong></td>
-                <td>${trade.tf}</td>
-                <td>${trade.ttt}</td>
-                <td>${trade.side}</td>
-                <td><span class="status-tag ${resultTag}">${trade.result}</span></td>
-                <td><span class="${pnlClass}">${trade.pnl}</span></td>
-                <td style="font-size: 0.75rem; color: #94a3b8;">${trade.notes}</td>
-                <td>
-                    <button class="btn-action pulse-blue" style="padding: 4px 10px; font-size: 0.65rem; background: var(--neon-blue); min-width: auto; height: auto;" 
-                        onclick="handleRestore('${trade.symbol}', '${trade.opened_at}')">RESTAURAR</button>
-                </td>
-            `;
-            tbody.appendChild(row);
-        });
+        
+        if(section) section.classList.remove('hidden');
+        if(tbody) {
+            tbody.innerHTML = '';
+            bots.forEach(b => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><strong>${b.symbol}</strong><br><small style="color:var(--text-dim)">TP: ${(b.tp_pct*100).toFixed(1)}% | SL: ${(b.sl_pct*100).toFixed(1)}%</small></td>
+                    <td><span class="status-tag ${b.side === 'SHORT' ? 'alert-short' : 'maduro'}">${b.side}</span></td>
+                    <td>${b.margin} USDT</td>
+                    <td>${b.status === 'OPEN' ? '<span style="color:var(--win-green); font-weight: bold;">EM OPERAÇÃO</span>' : '<span style="color:var(--neon-orange); font-weight: bold;">AGUARDANDO ALVO</span>'}</td>
+                    <td><button class="btn-action pulse-red" style="padding: 6px 12px; background:var(--loss-red);" onclick="stopBot('${b.id}')">🛑 PARAR BOT</button></td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
     } catch (err) {
-        console.error('Erro ao atualizar histórico:', err);
+        console.error("Erro ao atualizar bots:", err);
     }
 }
 
-// Inicia os processos
-updatePortfolio();
-updateScanner();
-setInterval(updatePortfolio, 30000); // 30s para carteira
-setInterval(() => updateScanner(true), 10000); // Polling silencioso a cada 10s (Background Watcher)
-setInterval(updateTime, 1000);
+async function stopBot(botId) {
+    if(!confirm("Deseja realmente parar este robô automático?\\n\\nNOTA: As posições OBTIDAS na BingX NÃO SERÃO FECHADAS, apenas o LOOP de re-entradas será interrompido.")) return;
+    try {
+        const res = await fetch(`${API_URL}/bot/stop/${botId}`, {method: 'POST'});
+        const data = await res.json();
+        if(data.status === 'success') {
+            showToast(data.message, 'success');
+            updateBots();
+        }
+    } catch (e) {
+        showToast("Erro ao parar bot", "error");
+    }
+}
+
+// Inicializa no carregamento
+setTimeout(() => updateBots(), 2000);

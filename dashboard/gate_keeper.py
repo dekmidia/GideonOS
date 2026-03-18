@@ -10,12 +10,36 @@ import concurrent.futures
 from flask import Flask, render_template, jsonify, request
 from flask_cors import CORS
 from datetime import datetime
+import threading
+import json
+import sys
+
+# Adiciona o diretório pai ao sys.path para encontrar o seasonality_engine.py
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from seasonality_engine import SeasonalityEngine
 
 app = Flask(__name__)
 CORS(app)
 
+season_engine = SeasonalityEngine()
+
+# --- PERSONA MARIO VEGA ---
+VEGA_PROMPT = """
+Você é o Mario Vega, um trader institucional de elite especializado em Momentum Breakout.
+Sua filosofia baseia-se em:
+1. Ignorar reversões de fundo; você busca o 'caixote' acumulado e a explosão com volume.
+2. A tendência macro (EMA 200) é sua bússola; você nunca opera contra ela.
+3. Donchian Channels: Você busca o rompimento da máxima de 10 horas (40 velas de 15m).
+4. Volume Institucional: Breakouts sem volume 2.5x acima da média são armadilhas.
+5. RSI é força: Se o RSI romper 60 em tendência de alta, é combustível, não sobrecompra.
+
+Responda sempre de forma técnica, direta e com a autoridade de quem domina o fluxo institucional. 
+Mantenha suas respostas curtas e focadas em responder dúvidas sobre trades ou mentalidade operacional.
+"""
+
 BINGX_URL = "https://open-api.bingx.com"
 LEDGER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'ledger_trades.md')
+LEDGER_CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'ledger_trades.csv')
 
 # SESSÃO GLOBAL PARA REUSO DE CONEXÕES (SPEED UP)
 http_session = requests.Session()
@@ -248,6 +272,16 @@ def get_multi_timeframe_analysis(symbol):
         "btc_status": btc_status
     }
 
+@app.route('/api/seasonality/<symbol>')
+def api_seasonality(symbol):
+    try:
+        data = season_engine.calculate_seasonality(symbol)
+        if data:
+            return jsonify(data)
+        return jsonify({"error": "Dados não encontrados"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -338,6 +372,145 @@ def salvar_sinal_ativo(sinal):
                 json.dump(sinais, f)
     except: pass
 
+@app.route('/api/chat', methods=['POST'])
+def api_chat():
+    try:
+        data = request.json
+        user_msg = data.get('message', '')
+        history = data.get('history', []) # Histórico opcional
+        image_b64 = data.get('image') # Opcional: imagem em base64
+        
+        if not user_msg and not image_b64:
+            return jsonify({'response': 'Diga algo ou envie um print, operador.'})
+
+        # --- Lógica de Seleção de IA (Prioriza Gemini se GOOGLE_API_KEY estiver presente) ---
+        google_key = os.getenv("GOOGLE_API_KEY")
+        openai_key = os.getenv("OPENAI_API_KEY")
+        
+        if not google_key and not openai_key:
+            return jsonify({
+                'response': f"Olá! Sou a IA do Mario Vega. (Nota: Configure GOOGLE_API_KEY ou OPENAI_API_KEY no .env para análise de imagens). Sua mensagem: '{user_msg}'"
+            })
+
+        # --- Lógica Gemini (Google) ---
+        if google_key:
+            try:
+                # Prepara o conteúdo base (texto + imagem se houver)
+                # Formata histórico para o Gemini
+                hist_text = ""
+                for h in history[:-1]: 
+                    role = "DIRETOR" if h['role'] == 'user' else "MÁRIO VEGA"
+                    hist_text += f"{role}: {h['content']}\n"
+                
+                prompt_with_history = f"SYSTEM: {VEGA_PROMPT}\n\n{hist_text}DIRETOR (Contexto Atual): {user_msg or 'Analise este cenário.'}"
+                
+                parts = [{"text": prompt_with_history}]
+                
+                if image_b64:
+                    if ";base64," in image_b64:
+                        mime_type = image_b64.split(";base64,")[0].split(":")[1]
+                        image_data = image_b64.split(";base64,")[1]
+                    else:
+                        mime_type = "image/jpeg"
+                        image_data = image_b64
+                    
+                    parts.append({
+                        "inline_data": {
+                            "mime_type": mime_type,
+                            "data": image_data
+                        }
+                    })
+
+                # Tentativa com múltiplos modelos (fallback robusto)
+                # Março 2026: Gemini 2.5 Flash é a versão estável dominante
+                models_to_try = [
+                    "gemini-2.5-flash",
+                    "gemini-1.5-flash",
+                    "gemini-2.0-flash",
+                    "gemini-1.5-flash-latest",
+                    "gemini-1.5-pro"
+                ]
+                
+                last_error = "Nenhum modelo disponível"
+                
+                for model_name in models_to_try:
+                    gemini_url = f"https://generativelanguage.googleapis.com/v1/models/{model_name}:generateContent?key={google_key}"
+                    
+                    current_parts = [p for p in parts]
+                    if "1.0-pro" in model_name:
+                        current_parts = [p for p in parts if "inline_data" not in p]
+
+                    payload = {
+                        "contents": [{ "parts": current_parts }],
+                        "generationConfig": {
+                            "maxOutputTokens": 800, # Aumentado para fluidez
+                            "temperature": 0.7
+                        }
+                    }
+                    
+                    try:
+                        response = requests.post(gemini_url, json=payload, timeout=20)
+                        res_json = response.json()
+                        
+                        if 'candidates' in res_json:
+                            vega_response = res_json['candidates'][0]['content']['parts'][0]['text']
+                            return jsonify({'response': vega_response})
+                        else:
+                            last_error = res_json.get('error', {}).get('message', 'Erro desconhecido')
+                            print(f"Tentativa com {model_name} falhou: {last_error}")
+                            continue 
+                    except Exception as e:
+                        last_error = str(e)
+                        continue
+
+                # Se todos os modelos do Gemini falharem
+                if openai_key:
+                    raise Exception(f"Gemini exausto: {last_error}")
+                return jsonify({'response': f"Erro na API do Gemini (todos os modelos falharam): {last_error}"})
+                    
+            except Exception as gemini_err:
+                if not openai_key:
+                    return jsonify({'response': f"Erro no Gemini: {str(gemini_err)}"})
+                # Se falhar o Gemini mas tiver OpenAI, continua para a lógica OpenAI
+                print(f"Gemini falhou, tentando OpenAI: {gemini_err}")
+
+        # --- Lógica Multi-modal (OpenAI GPT-4o) ---
+        try:
+            import openai
+            client = openai.OpenAI(api_key=openai_key)
+            
+            # Constrói lista de mensagens com histórico
+            openai_messages = [{"role": "system", "content": VEGA_PROMPT}]
+            
+            # Adiciona histórico (excluindo a última se necessário, mas aqui pegamos o que o frontend mandou)
+            for h in history[:-1]:
+                openai_messages.append({"role": h['role'], "content": h['content']})
+
+            content = [{"type": "text", "text": user_msg or "Analise este cenário sob sua ótica estratégica."}]
+            
+            if image_b64:
+                if ";base64," in image_b64:
+                    image_b64 = image_b64.split(";base64,")[1]
+                
+                content.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}
+                })
+
+            openai_messages.append({"role": "user", "content": content})
+
+            response = client.chat.completions.create(
+                model="gpt-4o", # Modelo com visão
+                messages=openai_messages,
+                max_tokens=800 # Aumentado para fluidez
+            )
+            return jsonify({'response': response.choices[0].message.content})
+        except Exception as e:
+            return jsonify({'response': f"Erro no processador visual (OpenAI): {str(e)}"})
+
+    except Exception as e:
+        return jsonify({'response': f"Erro no servidor: {str(e)}"}), 500
+
 @app.route('/api/latest_signals')
 def api_latest_signals():
     if not os.path.exists('sinais_ativos.json'):
@@ -381,12 +554,18 @@ def api_scanner():
                 perfil = PERFIS_MECANICA.get(tf, PERFIS_MECANICA["1h"])
                 tp, sl = price * perfil["tp"], price * perfil["sl"]
                 estimativa = estimar_tempo_alvo(price, tp, laranja["atr"])
+                # 2.1 Análise Sazonal (Opção 3)
+                season_data = season_engine.calculate_seasonality(symbol)
+                season_score = season_data['score'] if season_data else 0
+                season_trend = season_data['trend'] if season_data else "NEUTRO"
+
                 signal = {
                     'symbol': symbol, 'price': price, 'rsi4h': round(rsi, 2),
                     'bb_upper': tf.upper(), 'status': f"🍊 {laranja['estrategia']} ({tf})",
                     'side': 'Short', 'tp': round(tp, 6), 'sl': round(sl, 6),
                     'estimativa': f"{estimativa} velas", 'score': 10 if (rsi > 70 and confidence < 40) else 8,
-                    'ai_conf': confidence
+                    'ai_conf': confidence, 'season_score': season_score, 'season_trend': season_trend,
+                    'timestamp': datetime.now().strftime('%H:%M:%S')
                 }
                 salvar_sinal_ativo(signal)
                 local_results.append(signal)
@@ -409,12 +588,18 @@ def api_scanner():
                     price = df['c'].iloc[-1]
                     perfil = PERFIS_RSI_MOMENTUM.get(tf, PERFIS_RSI_MOMENTUM["1m"])
                     tp, sl = price * perfil["tp"], price * perfil["sl"]
+                    # 2.2 Análise Sazonal (Opção 3)
+                    season_data = season_engine.calculate_seasonality(symbol)
+                    season_score = season_data['score'] if season_data else 0
+                    season_trend = season_data['trend'] if season_data else "NEUTRO"
+
                     signal = {
                         'symbol': symbol, 'price': price, 'rsi4h': rsi_m['rsi'],
                         'bb_upper': tf.upper(), 'status': status_long,
                         'side': 'Long', 'tp': round(tp, 6), 'sl': round(sl, 6),
                         'estimativa': "Rápida", 'score': score_long,
-                        'ai_conf': confidence
+                        'ai_conf': confidence, 'season_score': season_score, 'season_trend': season_trend,
+                        'timestamp': datetime.now().strftime('%H:%M:%S')
                     }
                     salvar_sinal_ativo(signal)
                     local_results.append(signal)
@@ -517,7 +702,9 @@ def api_monitor():
                         'status': status,
                         'opened_at': parts[1],
                         'tf': parts[3],
-                        'ttt': parts[4]
+                        'ttt': parts[4],
+                        'tp': parts[8].replace('*', '').strip() if len(parts) > 8 else 'N/A',
+                        'sl': parts[9].replace('*', '').strip() if len(parts) > 9 else 'N/A'
                     })
                 except: continue
         # Status Macro para o Dashboard
@@ -542,8 +729,15 @@ def api_entry():
         # Data e Hora de Abertura completa
         date = datetime.now().strftime('%d/%m/%y %H:%M:%S')
         
+        tp = data.get('tp')
+        sl = data.get('sl')
+        
+        # Fallback se não vier (segurança)
+        if not tp: tp = round(float(price), 6)
+        if not sl: sl = round(float(price) * 1.1, 6) if side.lower() == 'short' else round(float(price) * 0.9, 6)
+
         # Nova Linha com 6 casas de precisão no preço de entrada
-        line = f"| {date} | **{symbol}** | {tf} | {ttt} | {side} | 8x | {round(float(price), 6)} | {round(float(price), 6)}* | {round(float(price)*1.1, 6)} |\n"
+        line = f"| {date} | **{symbol}** | {tf} | {ttt} | {side} | 8x | {round(float(price), 6)} | {round(float(tp), 6)}* | {round(float(sl), 6)} |\n"
         
         ledger_path = LEDGER_PATH
         with open(ledger_path, 'r', encoding='utf-8') as f:
@@ -573,7 +767,11 @@ def api_exit():
     try:
         data = request.json
         symbol = data.get('symbol')
+        result_type = data.get('result', 'WIN') # WIN ou LOSS
+        pnl_val = data.get('pnl', '+1.0%')
+        
         ledger_path = LEDGER_PATH
+        csv_path = LEDGER_CSV_PATH
         
         with open(ledger_path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
@@ -581,7 +779,7 @@ def api_exit():
         new_lines = []
         removed_line = None
         for line in lines:
-            if f"**{symbol}**" in line and '|' in line and any(s.lower() in line.lower() for s in ['Short', 'Long']):
+            if f"**{symbol}**" in line and '|' in line and any(s.lower() in line.lower() for s in ['short', 'long']):
                 if not removed_line:
                     removed_line = line
                     continue
@@ -589,14 +787,29 @@ def api_exit():
         
         if removed_line:
             parts = [p.strip() for p in removed_line.split('|')]
-            # parts do removed_line: 0:'', 1:Abertura, 2:Par, 3:TF, 4:TTT, 5:Tipo, 6:Alav, 7:Entrada...
             date_exit = datetime.now().strftime('%d/%m/%y %H:%M:%S')
             
-            # Cabeçalho Histórico: | Abertura | Saída | Par | TF | TTT | Tipo | Resultado | PnL | Notas |
-            # Metadados preservados: E=Entrada, T=Alvo, S=Stop
-            metadata = f"[E:{parts[7]}, T:{parts[10]}, S:{parts[11]}]" if len(parts) > 11 else f"[E:{parts[7]}, T:{parts[8]}, S:{parts[9]}]"
-            hist_line = f"| {parts[1]} | {date_exit} | **{symbol}** | {parts[3]} | {parts[4]} | {parts[5]} | ✅ WIN | +1.0% | {metadata} Fechado via Dashboard. |\n"
+            # Resultado visual
+            res_emoji = "✅ WIN" if result_type == 'WIN' else "❌ LOSS"
             
+            metadata = f"[E:{parts[7]}, T:{parts[10]}, S:{parts[11]}]" if len(parts) > 11 else f"[E:{parts[7]}, T:{parts[8]}, S:{parts[9]}]"
+            hist_line = f"| {parts[1]} | {date_exit} | **{symbol}** | {parts[3]} | {parts[4]} | {parts[5]} | {res_emoji} | {pnl_val} | {metadata} Fechado via Dashboard. |\n"
+            
+            # --- SALVAR NO CSV (PLANILHA) ---
+            file_exists = os.path.isfile(csv_path)
+            with open(csv_path, 'a', encoding='utf-8') as cf:
+                if not file_exists:
+                    cf.write("Abertura,Saída,Par,TF,TTT,Tipo,Resultado,PnL,Entrada,Alvo,Stop,Notas\n")
+                
+                # Limpar negritos e metadados para o CSV
+                clean_sym = symbol.replace('*', '')
+                e_val, t_val, s_val = "0", "0", "0"
+                match = re.search(r'\[E:(.*?), T:(.*?), S:(.*?)\]', metadata)
+                if match: e_val, t_val, s_val = match.groups()
+                
+                csv_line = f"{parts[1]},{date_exit},{clean_sym},{parts[3]},{parts[4]},{parts[5]},{result_type},{pnl_val},{e_val},{t_val},{s_val},Fechado via Dashboard\n"
+                cf.write(csv_line)
+
             final_lines = []
             hist_header = '## 🔴 Histórico de Operações (Encerradas)'
             for line in new_lines:
@@ -608,7 +821,7 @@ def api_exit():
             content = "".join(final_lines).replace("|:---:|:---:|---|:---:|:---:|:---:|:---:|:---:|---\n|:---:|:---:|---|:---:|:---:|:---:|:---:|:---:|---|", "|:---:|:---:|---|:---:|:---:|:---:|:---:|:---:|---|")
             with open(ledger_path, 'w', encoding='utf-8') as f:
                 f.write(content)
-            return jsonify({'status': 'success', 'message': f'Saída de {symbol} registrada!'})
+            return jsonify({'status': 'success', 'message': f'Saída de {symbol} registrada (CSV atualizado!)'})
         return jsonify({'status': 'error', 'message': 'Posição não encontrada'})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -649,6 +862,99 @@ def api_history():
                 except: continue
         return jsonify(history)
     except: return jsonify([])
+
+def get_atr_projections(symbol):
+    """Calcula alvos de preço baseados em múltiplos do ATR Diário."""
+    try:
+        # Busca dados diários (últimos 20 dias para ATR 14)
+        df_daily = get_data(symbol, '1d', 20)
+        if df_daily is None or len(df_daily) < 15:
+            return None
+        
+        # Preço de Abertura do Dia (00:00 UTC)
+        daily_open = df_daily.iloc[-1]['o']
+        curr_price = df_daily.iloc[-1]['c']
+        
+        # Calcular ATR 14
+        high_low = df_daily['h'] - df_daily['l']
+        high_close = np.abs(df_daily['h'] - df_daily['c'].shift())
+        low_close = np.abs(df_daily['l'] - df_daily['c'].shift())
+        ranges = pd.concat([high_low, high_close, low_close], axis=1)
+        true_range = ranges.max(axis=1)
+        atr = true_range.rolling(14).mean().iloc[-1]
+        
+        # Multiplicadores sugeridos pelo usuário
+        multipliers = [0.5, 1.0, 1.5, 2.0]
+        
+        bull_targets = []
+        bear_targets = []
+        
+        # Verificamos se estamos acima ou abaixo da abertura para ajustar probabilidades
+        bias = "BULL" if curr_price > daily_open else "BEAR"
+        
+        for m in multipliers:
+            target_high = daily_open + (atr * m)
+            target_low = daily_open - (atr * m)
+            
+            # Cálculo de probabilidade simplificado
+            # 1.0 ATR ~ 68% de chance (1 desvio padrão aproximado)
+            # 2.0 ATR ~ 5% de chance de ultrapassar (estatística de cauda)
+            base_prob = 70 if m <= 0.5 else (50 if m <= 1.0 else (20 if m <= 1.5 else 5))
+            
+            # Ajuste pelo Bias (favorece o lado da tendência do dia)
+            bull_prob = base_prob + 10 if bias == "BULL" else base_prob - 10
+            bear_prob = base_prob + 10 if bias == "BEAR" else base_prob - 10
+            
+            bull_targets.append({"val": round(target_high, 6), "prob": max(2, bull_prob), "multiple": m})
+            bear_targets.append({"val": round(target_low, 6), "prob": max(2, bear_prob), "multiple": m})
+            
+        # Gerar o "Smart Path" (Caminho do Trade)
+        # É uma projeção de 30 pontos que simula a movimentação até o alvo de 1.0 ATR
+        trade_path = []
+        target_val = daily_open + (atr if bias == "BULL" else -atr)
+        
+        # Simulamos 30 "passos" (velas projetadas)
+        temp_price = curr_price
+        total_steps = 30
+        for i in range(total_steps):
+            # Proporção do caminho percorrido
+            progress = (i + 1) / total_steps
+            
+            # Tendência central: vai do curr_price ao target_val
+            trend_price = curr_price + (target_val - curr_price) * progress
+            
+            # Adicionamos "ruído" (tráfego) de 5% do ATR para realismo
+            noise = (np.random.normal(0, 0.05) * atr)
+            point_price = trend_price + noise
+            
+            trade_path.append({
+                "step": i,
+                "val": round(point_price, 6)
+            })
+
+        return {
+            "symbol": symbol,
+            "atr": round(atr, 6),
+            "open": round(daily_open, 6),
+            "current": round(curr_price, 6),
+            "bull_targets": bull_targets,
+            "bear_targets": bear_targets,
+            "trade_path": trade_path,
+            "bias": bias
+        }
+    except Exception as e:
+        print(f"Erro no cálculo de ATR Path: {e}")
+        return None
+
+@app.route('/api/projection/<symbol>')
+def api_projection(symbol):
+    try:
+        data = get_atr_projections(symbol)
+        if data:
+            return jsonify(data)
+        return jsonify({"error": "Falha ao calcular projeção"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/analyze/<symbol>')
 def api_analyze(symbol):
@@ -817,6 +1123,31 @@ def api_bingx_order():
             else:
                 print(f"✅ [BINGX] SL Configurado")
 
+            # Integração com Scalp Bot Automático se a flag vier
+            if data.get('is_scalp'):
+                # Calculamos as % de TP e SL da entrada original para manter nos próximos ciclos
+                tp_val = float(tp_price)
+                sl_val = float(sl_price)
+                if pos_side == "SHORT":
+                    tp_pct = abs(entry_price - tp_val) / entry_price
+                    sl_pct = abs(sl_val - entry_price) / entry_price
+                else:
+                    tp_pct = abs(tp_val - entry_price) / entry_price
+                    sl_pct = abs(entry_price - sl_val) / entry_price
+                    
+                bots = load_bots()
+                bots.append({
+                    "id": f"bot_{int(time.time())}",
+                    "symbol": symbol,
+                    "side": original_side,
+                    "margin": margin,
+                    "tp_pct": max(0.001, tp_pct), # mínimo 0.1%
+                    "sl_pct": max(0.001, sl_pct),
+                    "status": "WAITING_FOR_OPEN"
+                })
+                save_bots(bots)
+                print(f"🤖 [SCALP BOT] Ativado para {symbol}!")
+
             return jsonify({'status': 'success', 'message': f'Operação em {symbol} executada!'})
         else:
             print(f"❌ [BINGX] Erro Crítico Ordem: {res}")
@@ -825,5 +1156,190 @@ def api_bingx_order():
         print(f"❌ [BINGX] Exceção: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+# ==========================================
+# SCALP BOT ENGINE (Automated Grid)
+# ==========================================
+
+BOTS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bots_ativos.json')
+
+def load_bots():
+    if not os.path.exists(BOTS_FILE): return []
+    try:
+        with open(BOTS_FILE, 'r') as f: return json.load(f)
+    except: return []
+
+def save_bots(bots):
+    try:
+        with open(BOTS_FILE, 'w') as f: json.dump(bots, f)
+    except Exception as e:
+        print(f"Erro ao salvar bots: {e}")
+
+def get_bingx_open_positions():
+    """Busca todas as posições abertas na BingX."""
+    api_key = os.getenv("BINGX_API_KEY")
+    secret_key = os.getenv("BINGX_SECRET")
+    if not api_key or not secret_key: return {}
+    
+    path = "/openApi/swap/v2/user/positions"
+    params = f"timestamp={int(time.time() * 1000)}&recvWindow=20000"
+    sig = get_bingx_signature(params, secret_key)
+    
+    try:
+        r = http_session.get(f"{BINGX_URL}{path}?{params}&signature={sig}", headers={"X-BX-APIKEY": api_key}, timeout=5)
+        res = r.json()
+        if res.get('code') == 0:
+            positions = res.get('data', [])
+            return {p['symbol']: p for p in positions if float(p.get('positionAmt', 0)) > 0}
+        return {}
+    except:
+        return {}
+
+def executar_reentrada_scalp(bot_data):
+    """Executa nova ordem de scalp baseada nos parâmetros originais."""
+    from dotenv import load_dotenv
+    load_dotenv()
+    api_key = os.getenv("BINGX_API_KEY")
+    secret_key = os.getenv("BINGX_SECRET")
+    if not api_key or not secret_key: return
+    
+    symbol = bot_data['symbol']
+    # Em bot_data, salvamos o symbol original (ex: BTCUSDT ou BTC-USDT).
+    bx_symbol = symbol.replace('USDT', '-USDT')
+    original_side = bot_data['side'].upper() # SHORT ou LONG
+    margin = float(bot_data['margin'])
+    tp_pct = float(bot_data['tp_pct'])
+    sl_pct = float(bot_data['sl_pct'])
+    
+    # 1. Pega preço atual
+    curr_price = get_bingx_price(symbol)
+    if not curr_price: 
+        print(f"🤖 [SCALP BOT] Falha ao pegar preço de {symbol} para re-entrada.")
+        return
+        
+    print(f"🤖 [SCALP BOT] Reiniciando ciclo de {symbol} a {curr_price}!")
+
+    side_api = "SELL" if original_side == "SHORT" else "BUY"
+    pos_side = "SHORT" if original_side == "SHORT" else "LONG"
+    close_side = "BUY" if original_side == "SHORT" else "SELL"
+    
+    # 2. Qtde
+    if curr_price < 0.01: qty = round((margin * 8.0) / curr_price, 0)
+    elif curr_price < 0.1: qty = round((margin * 8.0) / curr_price, 1)
+    elif curr_price < 1.0: qty = round((margin * 8.0) / curr_price, 2)
+    else: qty = round((margin * 8.0) / curr_price, 3)
+    
+    # 3. Ordem Principal
+    order_path = "/openApi/swap/v2/trade/order"
+    params = {
+        "symbol": bx_symbol, "side": side_api, "positionSide": pos_side,
+        "type": "MARKET", "quantity": qty,
+        "timestamp": int(time.time() * 1000), "recvWindow": 20000
+    }
+    query = "&".join([f"{k}={v}" for k, v in sorted(params.items())])
+    sig = get_bingx_signature(query, secret_key)
+    res = http_session.post(f"{BINGX_URL}{order_path}?{query}&signature={sig}", headers={"X-BX-APIKEY": api_key}).json()
+    
+    if res.get('code') == 0:
+        def format_price(p):
+            val = float(p)
+            if val < 0.001: return round(val, 6)
+            if val < 0.1: return round(val, 5)
+            if val < 1: return round(val, 4)
+            return round(val, 3)
+            
+        tp_price = format_price(curr_price * (1 - tp_pct) if original_side == 'SHORT' else curr_price * (1 + tp_pct))
+        sl_price = format_price(curr_price * (1 + sl_pct) if original_side == 'SHORT' else curr_price * (1 - sl_pct))
+        
+        # TP
+        tp_params = {
+            "symbol": bx_symbol, "side": close_side, "positionSide": pos_side, "type": "TAKE_PROFIT_MARKET", 
+            "stopPrice": tp_price, "quantity": qty, "workingType": "MARK_PRICE", 
+            "timestamp": int(time.time() * 1000), "recvWindow": 20000
+        }
+        tp_q = "&".join([f"{k}={v}" for k, v in sorted(tp_params.items())])
+        http_session.post(f"{BINGX_URL}{order_path}?{tp_q}&signature={get_bingx_signature(tp_q, secret_key)}", headers={"X-BX-APIKEY": api_key})
+        
+        # SL
+        sl_params = {
+            "symbol": bx_symbol, "side": close_side, "positionSide": pos_side, "type": "STOP_MARKET", 
+            "stopPrice": sl_price, "quantity": qty, "workingType": "MARK_PRICE", 
+            "timestamp": int(time.time() * 1000), "recvWindow": 20000
+        }
+        sl_q = "&".join([f"{k}={v}" for k, v in sorted(sl_params.items())])
+        http_session.post(f"{BINGX_URL}{order_path}?{sl_q}&signature={get_bingx_signature(sl_q, secret_key)}", headers={"X-BX-APIKEY": api_key})
+        
+        # Registra novo ciclo do bot
+        bots = load_bots()
+        new_bot = {
+            "id": f"bot_{int(time.time())}",
+            "symbol": bx_symbol,
+            "side": original_side,
+            "margin": margin,
+            "tp_pct": tp_pct,
+            "sl_pct": sl_pct,
+            "status": "WAITING_FOR_OPEN"
+        }
+        bots.append(new_bot)
+        save_bots(bots)
+        print(f"✅ [SCALP BOT] Re-entrada efetuada para {bx_symbol}!")
+
+def background_bot_monitor():
+    """Thread em background que gerencia os bots de scalp continuamente."""
+    print("🤖 [SCALP BOT] Monitor iniciado em segundo plano...")
+    while True:
+        try:
+            bots = load_bots()
+            if not bots:
+                time.sleep(10)
+                continue
+            
+            open_pos = get_bingx_open_positions()
+            bots_restantes = []
+            ciclos_para_iniciar = []
+            
+            for bot in bots:
+                sym = bot['symbol']
+                pos = open_pos.get(sym)
+                
+                # Garantir que ignoramos short e pegamos a correta se tiver positionSide
+                # A API retorna symbol ex: ACT-USDT
+                if bot['status'] == 'WAITING_FOR_OPEN':
+                    if pos and float(pos.get('positionAmt', 0)) > 0:
+                        bot['status'] = 'OPEN'
+                    bots_restantes.append(bot)
+                elif bot['status'] == 'OPEN':
+                    # O Bot estava aberto, se a posição sumir ou for 0, fechou (hit TP/SL/Manual)
+                    if not pos or float(pos.get('positionAmt', 0)) == 0:
+                        # Trade ended! Start next cycle
+                        ciclos_para_iniciar.append(bot)
+                    else:
+                        bots_restantes.append(bot)
+                        
+            save_bots(bots_restantes)
+            
+            for b in ciclos_para_iniciar:
+                time.sleep(1) # Intervalo seguro
+                executar_reentrada_scalp(b)
+                
+        except Exception as e:
+            print(f"❌ [SCALP BOT] Erro na thread de monitoramento: {e}")
+        time.sleep(10)
+
+@app.route('/api/bot/status', methods=['GET'])
+def api_bot_status():
+    return jsonify(load_bots())
+
+@app.route('/api/bot/stop/<bot_id>', methods=['POST'])
+def api_bot_stop(bot_id):
+    bots = load_bots()
+    filtered = [b for b in bots if b.get('id') != bot_id]
+    save_bots(filtered)
+    return jsonify({"status": "success", "message": "Bot parado com sucesso!"})
+
 if __name__ == '__main__':
+    # Inicializa thread do Scalp Bot apenas uma vez
+    if not os.environ.get("WERKZEUG_RUN_MAIN") or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+        t = threading.Thread(target=background_bot_monitor, daemon=True)
+        t.start()
+        
     app.run(port=5000, debug=True)

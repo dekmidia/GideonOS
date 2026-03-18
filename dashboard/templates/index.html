@@ -46,11 +46,54 @@
 
             <div id="monitor-section" class="tab-content active">
                 <div class="dashboard-grid">
-                    <!-- SEÇÃO CARTEIRA -->
-                    <section class="portfolio-section glass-bg">
-                        <h2>CARTEIRA ATIVA</h2>
-                        <div id="portfolio-grid" class="portfolio-grid">
-                            <!-- Cards serão inseridos aqui -->
+                    <!-- SEÇÃO DE FAVORITOS (PINADOS) -->
+                    <section id="pinned-section" class="scanner-section glass-bg hidden" style="grid-column: 1 / -1; border: 1px solid rgba(255, 171, 0, 0.3); margin-bottom: 20px;">
+                        <div class="section-header">
+                            <h2 style="color: var(--neon-orange);">⭐ SINAIS PINADOS (FAVORITOS)</h2>
+                        </div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Hora</th>
+                                        <th>Símbolo</th>
+                                        <th>Preço</th>
+                                        <th>Alvo (TP)</th>
+                                        <th>Stop (SL)</th>
+                                        <th>Score</th>
+                                        <th>Sazonalidade</th>
+                                        <th>Status</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="pinned-body">
+                                    <!-- Sinais pinados aparecerão aqui -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+
+                    <!-- SEÇÃO BOTS DE SCALP -->
+                    <section id="scalp-bots-section" class="scanner-section glass-bg hidden" style="grid-column: 1 / -1; border: 1px solid rgba(0, 234, 255, 0.3); margin-bottom: 20px;">
+                        <div class="section-header">
+                            <h2 style="color: var(--neon-blue);">🤖 AUTOMATED SCALP BOTS</h2>
+                            <span style="font-size: 0.7rem; color: var(--text-dim);">Re-entradas automáticas ativas</span>
+                        </div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Símbolo</th>
+                                        <th>Lado</th>
+                                        <th>Margem</th>
+                                        <th>Status (BingX)</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="scalp-bots-body">
+                                    <!-- Bots ativos aparecerão aqui -->
+                                </tbody>
+                            </table>
                         </div>
                     </section>
 
@@ -58,7 +101,10 @@
                     <section class="scanner-section glass-bg">
                         <div class="section-header">
                             <h2>SENTINELA SCANNER</h2>
-                            <button id="btn-scan" class="btn-action btn-entry" onclick="manualScan()">SCANEAR AGORA</button>
+                            <div style="display: flex; gap: 10px;">
+                                <button id="btn-scan" class="btn-action btn-entry" onclick="manualScan()">SCANEAR AGORA</button>
+                                <button id="btn-stop" class="btn-action btn-exit hidden" style="margin-top: 0; background: var(--loss-red); width: auto;" onclick="stopScan()">STOP</button>
+                            </div>
                         </div>
                         <div id="progress-container" class="progress-hidden">
                             <div id="progress-bar"></div>
@@ -67,11 +113,13 @@
                             <table>
                                 <thead>
                                     <tr>
+                                        <th>Hora</th>
                                         <th>Símbolo</th>
                                         <th>Preço</th>
                                         <th>Alvo (TP)</th>
                                         <th>Stop (SL)</th>
                                         <th id="header-score" onclick="toggleScannerSort()" style="cursor: pointer; color: var(--neon-orange);">Score ▼</th>
+                                        <th>Sazonalidade</th>
                                         <th>Status</th>
                                         <th>Ações</th>
                                     </tr>
@@ -83,6 +131,30 @@
                         </div>
                         <div id="log-display" class="log-area">
                             [SYSTEM] Bem-vindo, Operador. Sistema Laranja Mecânica V3 pronto.
+                        </div>
+                    </section>
+
+                    <!-- SEÇÃO CARTEIRA (ABAIXO DO SCANNER, ESTILO BINGX) -->
+                    <section class="portfolio-section glass-bg">
+                        <h2>CARTEIRA ATIVA</h2>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Par</th>
+                                        <th>Abertura</th>
+                                        <th>Entrada / Atual</th>
+                                        <th>Expectativa (TTT)</th>
+                                        <th>PnL (%)</th>
+                                        <th>TP / SL</th>
+                                        <th>Status / RSI</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="portfolio-body">
+                                    <!-- Posições serão inseridas aqui como linhas de tabela -->
+                                </tbody>
+                            </table>
                         </div>
                     </section>
                 </div>
@@ -125,10 +197,27 @@
     <div id="chart-modal" class="modal-overlay">
         <div class="modal-content glass-bg">
             <div class="modal-header">
-                <h3 id="modal-symbol">SÍMBOLO</h3>
+                <div style="display: flex; align-items: center; gap: 20px;">
+                    <h3 id="modal-symbol">SÍMBOLO</h3>
+                    <button id="btn-toggle-season-chart" class="btn-action pulse-blue" style="background: var(--neon-orange); padding: 8px 15px;">🗺️ ATIVAR PROJEÇÕES</button>
+                    <div id="projection-mode-selector" class="hidden" style="display: flex; gap: 5px; background: rgba(255,255,255,0.05); padding: 5px; border-radius: 5px;">
+                        <button id="btn-mode-macro" class="btn-tab active" style="font-size: 0.7rem; padding: 4px 8px;">ESTRADA (MACRO)</button>
+                        <button id="btn-mode-local" class="btn-tab" style="font-size: 0.7rem; padding: 4px 8px;">TRÁFEGO (LOCAL)</button>
+                    </div>
+                </div>
                 <button id="close-modal" class="close-btn">&times;</button>
             </div>
-            <div id="tradingview-container" class="chart-container"></div>
+            <div class="chart-overlay-container">
+                <div id="tradingview-container" class="chart-container"></div>
+                <div id="seasonality-stats-box" class="stats-box hidden">
+                    <div id="stats-header-text" class="stats-header">PREVISÃO SAZONAL</div>
+                    <div class="stats-row"><span>Confiança</span> <span id="stats-conf">--</span></div>
+                    <div class="stats-row"><span>Alpha (ROI 30D)</span> <span id="stats-roi">--</span></div>
+                    <div class="stats-row"><span>Tendência</span> <span id="stats-trend">--</span></div>
+                    <div class="stats-row"><span>Status</span> <span id="stats-status">MARÉ ALTA</span></div>
+                </div>
+                <canvas id="seasonal-overlay-canvas"></canvas>
+            </div>
         </div>
     </div>
 
@@ -151,6 +240,33 @@
                     <label>Margem (USDT):</label>
                     <input type="number" id="order-margin" value="10" min="2" step="1">
                 </div>
+                
+                <div class="order-row" style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; display: flex; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; flex-direction: column;">
+                        <span style="color: var(--neon-blue); font-weight: bold;">🤖 Auto-Scalp (Loop)</span>
+                        <span style="font-size: 0.65rem; color: var(--text-dim);">Recompra/Revende sozinho no TP</span>
+                    </div>
+                    <label class="switch" style="position: relative; display: inline-block; width: 40px; height: 20px;">
+                        <input type="checkbox" id="order-is-scalp" style="opacity: 0; width: 0; height: 0;">
+                        <span class="slider round" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(255,255,255,0.1); border-radius: 20px; transition: .4s;">
+                            <span style="position: absolute; content: ''; height: 16px; width: 16px; left: 2px; bottom: 2px; background-color: white; border-radius: 50%; transition: .4s;" id="scalp-slider-knob"></span>
+                        </span>
+                    </label>
+                </div>
+                
+                <script>
+                    document.getElementById('order-is-scalp').addEventListener('change', function() {
+                        const knob = document.getElementById('scalp-slider-knob');
+                        const slider = this.nextElementSibling;
+                        if(this.checked) {
+                            slider.style.backgroundColor = 'var(--neon-blue)';
+                            knob.style.transform = 'translateX(20px)';
+                        } else {
+                            slider.style.backgroundColor = 'rgba(255,255,255,0.1)';
+                            knob.style.transform = 'translateX(0)';
+                        }
+                    });
+                </script>
             </div>
             <div class="modal-footer">
                 <button id="btn-confirm-order" class="btn-action btn-entry" style="width: 100%; margin-top: 15px; padding: 12px;">EXECUTAR NA BINGX</button>
@@ -170,6 +286,17 @@
                 <!-- Blocos de Timeframe (1m, 5m, 15m, 30m, 1h, 4h) -->
             </div>
 
+            <div class="seasonality-area">
+                <div class="verdict-title">PROJEÇÃO SAZONAL (10 ANOS)</div>
+                <div id="seasonality-chart-container" class="seasonal-chart-mini">
+                    <!-- Canvas para o gráfico de linha virá aqui -->
+                    <canvas id="seasonal-canvas"></canvas>
+                </div>
+                <div id="season-info-text" style="font-size: 0.7rem; color: var(--text-dim); text-align: center; margin-top: 5px;">
+                    Carregando comportamento histórico...
+                </div>
+            </div>
+
             <div class="verdict-area">
                 <div class="verdict-title">VEREDITO FINAL</div>
                 <div id="verdict-value" class="verdict-value">---</div>
@@ -182,11 +309,69 @@
                     <span id="conf-value">0%</span>
                 </div>
             </div>
+
+            <div class="projection-area">
+                <div class="verdict-title">GIDEON PATH (ATR VOLATILITY)</div>
+                <div id="projection-container" class="projection-grid">
+                    <!-- Alvos de ATR serão inseridos aqui -->
+                    <div style="text-align: center; color: var(--text-dim); font-size: 0.7rem; padding: 10px;">
+                        Calculando alvos de probabilidade...
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <!-- NOTIFICAÇÕES TOAST -->
+    <!-- CHAT MARIO VEGA -->
+    <button id="chat-launcher" class="chat-launcher" onclick="toggleChat()">
+        <span>💬 VEGA IA</span>
+    </button>
+
+    <div id="chat-window" class="chat-window chat-hidden">
+        <div class="chat-header">
+            <h3>MÁRIO VEGA | ESTRATÉGIA</h3>
+            <button onclick="toggleChat()">×</button>
+        </div>
+        <div id="chat-messages" class="chat-messages">
+            <div class="message msg-vega">
+                Olá, operador. Sou seu consultor estratégico. 
+                Fale comigo sobre momentum, breakouts ou gestão institucional.
+            </div>
+        </div>
+        <div id="chat-image-preview" class="chat-image-preview hidden">
+            <!-- Miniatura da imagem colada aqui -->
+        </div>
+        <div class="chat-input-area">
+            <input type="text" id="chat-input" placeholder="Cole um print (Ctrl+V)..." onkeypress="handleChatKey(event)">
+            <button onclick="sendChatMessage()">OK</button>
+        </div>
+    </div>
+
     <div id="toast-container" class="toast-container"></div>
+
+    <!-- MODAL DE CONFIRMAÇÃO DE SAÍDA (GAIN/LOSS) -->
+    <div id="exit-order-modal" class="modal">
+        <div class="modal-content glass-bg" style="max-width: 400px; text-align: center;">
+            <h2 id="exit-modal-title" style="color: var(--neon-orange); margin-bottom: 20px;">ENCERRAR OPERAÇÃO</h2>
+            <p style="margin-bottom: 24px; color: var(--soft-white);">Como foi o resultado desta operação em <span id="exit-symbol-display" style="font-weight: bold;"></span>?</p>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
+                <button onclick="setExitResult('WIN')" class="btn-action pulse-success" style="background: var(--win-green);">✅ GANHO (WIN)</button>
+                <button onclick="setExitResult('LOSS')" class="btn-action pulse-red" style="background: var(--loss-red);">❌ PERDA (LOSS)</button>
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; font-size: 0.8rem; color: var(--text-dim); margin-bottom: 8px;">PNL ESTIMADO (%)</label>
+                <input type="text" id="exit-pnl-input" class="chat-input" style="text-align: center; font-size: 1.2rem;" placeholder="+1.0%">
+            </div>
+
+            <div style="display: flex; gap: 12px;">
+                <button id="btn-cancel-exit" class="btn-action" style="background: rgba(255,255,255,0.1);">CANCELAR</button>
+                <button id="btn-confirm-exit" class="btn-action pulse-orange" style="background: var(--neon-orange); flex: 1;">CONFIRMAR E SALVAR</button>
+            </div>
+        </div>
+    </div>
 
     <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
